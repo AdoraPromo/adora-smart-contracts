@@ -4,9 +4,13 @@ pragma solidity ^0.8.19;
 // import {FunctionsClient} from "@chainlink/contracts/src/v0.8/functions/dev/v1_0_0/FunctionsClient.sol";
 // import {ConfirmedOwner} from "@chainlink/contracts/src/v0.8/shared/access/ConfirmedOwner.sol";
 // import {FunctionsRequest} from "@chainlink/contracts/src/v0.8/functions/dev/v1_0_0/libraries/FunctionsRequest.sol";
+import "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
+import "@openzeppelin/contracts/utils/Strings.sol";
+import "@tableland/evm/contracts/utils/TablelandDeployments.sol";
 
-contract SponsorshipMarketplace {
-  //is FunctionsClient, ConfirmedOwner {
+contract SponsorshipMarketplace is
+  ERC721Holder //is FunctionsClient, ConfirmedOwner {
+{
   // Offer status codes
   uint256 public constant UNKNOWN = 0;
   uint256 public constant NEW = 1;
@@ -14,8 +18,10 @@ contract SponsorshipMarketplace {
   uint256 public constant ACCEPTED = 3;
   uint256 public constant CANCELLED = 4;
 
-  mapping(uint256 offerId => uint256 status) private offerStatuses;
-  mapping(uint256 offerId => uint256 timestamp) private offerAcceptExpirations;
+  mapping(uint256 offerId => uint256 status) private s_offerStatuses;
+  mapping(uint256 offerId => uint256 timestamp) private s_offerAcceptExpirations;
+  uint256 private s_tableId;
+  string private s_tableName;
 
   error OfferIdMissing();
   error AcceptExpirationTimestampMissing();
@@ -24,9 +30,19 @@ contract SponsorshipMarketplace {
   error OfferAlreadyExists();
 
   event OfferCreated(uint256 offerId);
+  event DatabaseTableCreated(uint256 tableName);
 
   constructor() {
-    // TODO: create a table in Tableland here
+    string memory chainId = Strings.toString(block.chainid);
+
+    uint256 tableId = TablelandDeployments.get().create(
+      address(this),
+      string.concat("CREATE TABLE offers_", chainId, " (id integer primary key, offerData text);")
+    );
+
+    s_tableId = tableId;
+
+    s_tableName = string.concat("offers_", chainId, "_", Strings.toString(tableId));
   }
 
   function createOffer(uint256 offerId, uint256 acceptExpiresAt, bytes calldata offerData) external {
@@ -38,8 +54,8 @@ contract SponsorshipMarketplace {
 
     _requireOfferData(offerData);
 
-    offerStatuses[offerId] = NEW;
-    offerAcceptExpirations[offerId] = acceptExpiresAt;
+    s_offerStatuses[offerId] = NEW;
+    s_offerAcceptExpirations[offerId] = acceptExpiresAt;
 
     // TODO: write data to the tableland
 
@@ -53,7 +69,7 @@ contract SponsorshipMarketplace {
   }
 
   function _requireOfferDoesNotExist(uint256 offerId) internal view {
-    if (offerStatuses[offerId] != UNKNOWN) {
+    if (s_offerStatuses[offerId] != UNKNOWN) {
       revert OfferAlreadyExists();
     }
   }

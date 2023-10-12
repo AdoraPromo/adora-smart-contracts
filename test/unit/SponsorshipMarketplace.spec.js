@@ -1,4 +1,6 @@
 const { expect } = require("chai")
+const { anyValue } = require("@nomicfoundation/hardhat-chai-matchers/withArgs")
+
 const { loadFixture } = require("@nomicfoundation/hardhat-network-helpers")
 
 describe("Sponsorship Marketplace", async function () {
@@ -6,7 +8,7 @@ describe("Sponsorship Marketplace", async function () {
     const [owner, sponsor, creator] = await ethers.getSigners()
 
     const Marketplace = await ethers.getContractFactory("SponsorshipMarketplace")
-    const marketplace = await Marketplace.deploy()
+    const marketplace = await Marketplace.deploy({ gasLimit: 2000000 })
 
     return { marketplace, owner, sponsor, creator }
   }
@@ -23,7 +25,28 @@ describe("Sponsorship Marketplace", async function () {
   }
 
   describe("Deployment", async () => {
-    it("mints the offers table", async () => {})
+    it("mints the offers table", async () => {
+      const Marketplace = await ethers.getContractFactory("SponsorshipMarketplace")
+
+      const LOCAL_TABLELAND_REGISTRY = "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512"
+
+      const tablelandRegistry = await ethers.getContractAt("ITablelandTables", LOCAL_TABLELAND_REGISTRY)
+
+      const marketplace = await Marketplace.deploy({ gasLimit: 2000000 })
+      await marketplace.deployed()
+
+      // TODO: for some reason hre.network.config is empty
+      const chainId = 31337
+
+      // TODO: change this to the actual fields stored on Tableland
+      await expect(marketplace.deployTransaction)
+        .to.emit(tablelandRegistry, "CreateTable")
+        .withArgs(
+          marketplace.address,
+          anyValue,
+          `CREATE TABLE offers_${chainId} (id integer primary key, offerData text);`
+        )
+    })
   })
 
   describe("Offer creation", async () => {
@@ -85,6 +108,16 @@ describe("Sponsorship Marketplace", async function () {
         marketplace,
         "OfferDataMissing"
       )
+    })
+
+    xit("reverts when payment amount not provided", async () => {
+      // const { marketplace, sponsor } = await deployMarketplace();
+      // const acceptExpirationTimestamp = (await ethers.provider.getBlock("latest")).timestamp + 123;
+      // const offerData = ethers.utils.toUtf8Bytes("Some data here");
+      // await expect(marketplace.createOffer(123, acceptExpirationTimestamp, offerData)).to.be.revertedWithCustomError(
+      //   marketplace,
+      //   "OfferDataMissing"
+      // );
     })
 
     it("Creates the offer", async () => {
