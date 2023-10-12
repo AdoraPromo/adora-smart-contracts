@@ -68,5 +68,8 @@
     "semi": false,
     "singleQuote": false,
     "printWidth": 120
+  },
+  "devDependencies": {
+    "@tableland/hardhat": "^0.0.6"
   }
 }
