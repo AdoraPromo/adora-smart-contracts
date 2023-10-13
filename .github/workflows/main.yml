@@ -31,4 +31,8 @@ jobs:
           node-version: "18"
           cache: "npm"
       - run: npm install --frozen-lockfile
+      - name: Setup Deno
+        uses: denolib/setup-deno@v2
+        with:
+          deno-version: "1.36.2"
       - run: npm run test
