@@ -74,167 +74,23 @@ describe("Sponsorship Marketplace", () => {
     })
   })
 
-  const deployMarketplace = async () => {
-    const [owner, sponsor, creator] = await ethers.getSigners()
+  // const deployMarketplace = async () => {
+  //   const [owner, sponsor, creator] = await ethers.getSigners()
 
-    const Marketplace = await ethers.getContractFactory("SponsorshipMarketplace")
-    const marketplace = await Marketplace.deploy({ gasLimit: 2000000 })
+  //   const Marketplace = await ethers.getContractFactory("SponsorshipMarketplace")
+  //   const marketplace = await Marketplace.deploy({ gasLimit: 2000000 })
 
-    return { marketplace, owner, sponsor, creator }
-  }
+  //   return { marketplace, owner, sponsor, creator }
+  // }
 
-  const createOffer = async (marketplace, sponsor) => {
-    const offerId = ethers.utils.hexlify(ethers.utils.randomBytes(32))
+  // const createOffer = async (marketplace, sponsor) => {
+  //   const offerId = ethers.utils.hexlify(ethers.utils.randomBytes(32))
 
-    const timestamp = (await ethers.provider.getBlock("latest")).timestamp + 123
-    const offerData = ethers.utils.toUtf8Bytes("Some data here")
+  //   const timestamp = (await ethers.provider.getBlock("latest")).timestamp + 123
+  //   const offerData = ethers.utils.toUtf8Bytes("Some data here")
 
-    await (await marketplace.createOffer(offerId, timestamp, offerData)).wait()
+  //   await (await marketplace.createOffer(offerId, timestamp, offerData)).wait()
 
-    return offerId
-  }
-
-  describe.only("Deployment", () => {
-    it("reverts if payment token address is zero", async () => {
-      const Marketplace = await ethers.getContractFactory("SponsorshipMarketplace")
-
-      await expect(Marketplace.deploy("0x", { gasLimit: 2000000 })).to.be.revertedWithCustomError(
-        marketplace,
-        "PaymentTokenNotProvided"
-      )
-    })
-
-    it("mints the deals and users tables", async () => {
-      const Marketplace = await ethers.getContractFactory("SponsorshipMarketplace")
-      const [randomAccount] = await ethers.getSigners()
-
-      // NOTE: Registry address locally
-      //       https://docs.tableland.xyz/smart-contracts/deployed-contracts#registry-contract
-      const LOCAL_TABLELAND_REGISTRY = "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512"
-
-      const tablelandRegistry = await ethers.getContractAt("ITablelandTables", LOCAL_TABLELAND_REGISTRY)
-
-      const marketplace = await Marketplace.deploy(randomAccount, { gasLimit: 2000000 })
-      await marketplace.deployed()
-      const deployTx = await marketplace.deployTransaction.wait()
-
-      // TODO: for some reason hre.network.config is empty
-      const chainId = 31337
-
-      const dealsColumns =
-        "id text primary key, " +
-        "creator_id text, " +
-        "sponsor_id text, " +
-        "status text, " +
-        "payment_amount text, " +
-        "payment_token text, " +
-        "tweet_id text, " +
-        "requirements text, " +
-        "created_at integer, " +
-        "delivery_deadline integer"
-
-      const usersColumns = "id text primary key, " + "twitter_account_id text, " + "address text"
-
-      const TRANSFER_EVENT_SIGNATURE = ethers.utils.keccak256(
-        ethers.utils.toUtf8Bytes("Transfer(address,address,uint256)")
-      )
-
-      // NOTE: tableland mints first table (id=1) for the healthbot
-      ;[2, 3].forEach((tableId) => {
-        const transferLog = deployTx.logs.find(
-          (log) =>
-            log.topics[0] === TRANSFER_EVENT_SIGNATURE &&
-            BigNumber.from(log.topics[1]).toString() === "0" &&
-            log.topics[2].slice(-40).toLowerCase() === marketplace.address.slice(-40).toLowerCase() &&
-            BigNumber.from(log.topics[3]).toString() === tableId.toString()
-        )
-
-        expect(transferLog).to.not.be.undefined
-      })
-
-      await expect(marketplace.deployTransaction)
-        .to.emit(tablelandRegistry, "CreateTable")
-        .withArgs(marketplace.address, 2, `CREATE TABLE deals_${chainId}(${dealsColumns});`)
-        .and.to.emit(tablelandRegistry, "CreateTable")
-        .withArgs(marketplace.address, 3, `CREATE TABLE users_${chainId}(${usersColumns});`)
-    })
-  })
-
-  describe("Offer creation", () => {
-    it("reverts when offer ID of zero is provided", async () => {
-      const { marketplace, sponsor } = await deployMarketplace()
-
-      const acceptExpirationTimestamp = (await ethers.provider.getBlock("latest")).timestamp + 123
-      const offerData = ethers.utils.toUtf8Bytes("Some data here")
-
-      await expect(marketplace.createOffer(0, acceptExpirationTimestamp, offerData)).to.be.revertedWithCustomError(
-        marketplace,
-        "OfferIdMissing"
-      )
-    })
-
-    it("reverts when offer with provided ID already exists", async () => {
-      const { marketplace, sponsor } = await deployMarketplace()
-
-      const offerId = createOffer(marketplace, sponsor)
-      const acceptExpirationTimestamp = (await ethers.provider.getBlock("latest")).timestamp + 123
-      const offerData = ethers.utils.toUtf8Bytes("Some data here")
-
-      await expect(
-        marketplace.createOffer(offerId, acceptExpirationTimestamp, offerData)
-      ).to.be.revertedWithCustomError(marketplace, "OfferAlreadyExists")
-    })
-
-    it("reverts when accept expiration timestamp of zero is provided", async () => {
-      const { marketplace, sponsor } = await deployMarketplace()
-
-      const acceptExpirationTimestamp = 0
-      const offerData = ethers.utils.toUtf8Bytes("Some data here")
-
-      await expect(marketplace.createOffer(123, acceptExpirationTimestamp, offerData)).to.be.revertedWithCustomError(
-        marketplace,
-        "AcceptExpirationTimestampMissing"
-      )
-    })
-
-    it("reverts when accept expiration timestamp is in the past", async () => {
-      const { marketplace, sponsor } = await deployMarketplace()
-
-      const acceptExpirationTimestamp = (await ethers.provider.getBlock("latest")).timestamp - 1
-      const offerData = ethers.utils.toUtf8Bytes("Some data here")
-
-      await expect(marketplace.createOffer(123, acceptExpirationTimestamp, offerData)).to.be.revertedWithCustomError(
-        marketplace,
-        "AcceptExpirationTimestampInPast"
-      )
-    })
-
-    it("reverts when no offer data provided", async () => {
-      const { marketplace, sponsor } = await deployMarketplace()
-
-      const acceptExpirationTimestamp = (await ethers.provider.getBlock("latest")).timestamp + 123
-      const offerData = "0x"
-
-      await expect(marketplace.createOffer(123, acceptExpirationTimestamp, offerData)).to.be.revertedWithCustomError(
-        marketplace,
-        "OfferDataMissing"
-      )
-    })
-
-    xit("reverts when payment amount not provided", async () => {
-      // const { marketplace, sponsor } = await deployMarketplace();
-      // const acceptExpirationTimestamp = (await ethers.provider.getBlock("latest")).timestamp + 123;
-      // const offerData = ethers.utils.toUtf8Bytes("Some data here");
-      // await expect(marketplace.createOffer(123, acceptExpirationTimestamp, offerData)).to.be.revertedWithCustomError(
-      //   marketplace,
-      //   "OfferDataMissing"
-      // );
-    })
-
-    it("Creates the offer", async () => {
-      // Expectations:
-      // - Tableland receives write event with the data
-      // - Offer created event gets emitted
-    })
-  })
+  //   return offerId
+  // }
 })

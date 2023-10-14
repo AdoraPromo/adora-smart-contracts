@@ -22,7 +22,8 @@ contract SponsorshipMarketplace is ERC721Holder {
     string id;
     string creatorId;
     string sponsorId;
-    uint256 paymentAmount;
+    uint256 maxPaymentAmount;
+    uint256 paymentPerLike;
     string requirements;
     uint256 deliveryDeadline;
   }
@@ -38,19 +39,21 @@ contract SponsorshipMarketplace is ERC721Holder {
 
   mapping(string dealId => uint256 status) private s_dealStatuses;
   mapping(string dealId => uint256 timestamp) private s_dealDeliveryDeadlines;
+  mapping(string dealId => uint256 limit) private s_dealMaxPaymentAmounts;
   mapping(string creatorId => bool exists) private s_creatorIds;
   mapping(string sponsorId => bool exists) private s_sponsorIds;
 
-  uint256 private constant USERS_TABLE_INDEX = 0;
-  uint256 private constant DEALS_TABLE_INDEX = 1;
+  uint256 public constant USERS_TABLE_INDEX = 0;
+  uint256 public constant DEALS_TABLE_INDEX = 1;
 
   address public s_paymentToken;
 
-  uint256[2] private s_tableIds;
+  uint256[2] public s_tableIds;
   string[2] public s_tableNames;
 
+  error PaymentTokenMissing();
   error DealIdMissing();
-  error DeliveryDeadlineInPast();
+  error DeliveryDeadlineMustBeInFuture();
   error RequirementsMissing();
   error DealAlreadyExists();
 
@@ -59,10 +62,14 @@ contract SponsorshipMarketplace is ERC721Holder {
   error CreatorIdsDiffer();
   error SponsorIdsDiffer();
   error SponsorAddressMustMatchSender();
+  error PaymentPerLikeMissing();
+  error MaxPaymentAmountMissing();
 
   event DealCreated(string dealId);
 
   constructor(address paymentToken) {
+    _requirePaymentToken(paymentToken);
+
     s_paymentToken = paymentToken;
 
     _createTable(
@@ -80,7 +87,8 @@ contract SponsorshipMarketplace is ERC721Holder {
       "creator_id text, "
       "sponsor_id text, "
       "status text, "
-      "payment_amount text, "
+      "max_payment_amount text, "
+      "payment_per_like text, "
       "payment_token text, "
       "tweet_id text, "
       "requirements text, "
@@ -90,11 +98,18 @@ contract SponsorshipMarketplace is ERC721Holder {
     );
   }
 
+  function _requirePaymentToken(address paymentToken) internal pure {
+    if (paymentToken == address(0)) {
+      revert PaymentTokenMissing();
+    }
+  }
+
   function createDeal(User calldata creator, User calldata sponsor, Proposal calldata proposal) external {
     _runCreateDealValidations(creator, sponsor, proposal);
 
     s_dealStatuses[proposal.id] = NEW;
     s_dealDeliveryDeadlines[proposal.id] = proposal.deliveryDeadline;
+    s_dealMaxPaymentAmounts[proposal.id] = proposal.maxPaymentAmount;
 
     _handleCreatorAndSponsorRecords(creator, sponsor);
 
@@ -115,21 +130,25 @@ contract SponsorshipMarketplace is ERC721Holder {
     _requireCreatorIdMatchesDeal(creator.id, proposal.creatorId);
 
     _requireSponsorId(proposal.sponsorId);
+    _requireSponsorIdMatchesDeal(sponsor.id, proposal.sponsorId);
+
     _requireSponsorAddressMatchesSender(sponsor.accountAddress);
-    _requireSponsorIdMatchesDeal(creator.id, proposal.creatorId);
 
     _requireDealRequirements(proposal.requirements);
     _requireDeliveryDeadlineInFuture(proposal.deliveryDeadline);
+
+    _requirePaymentPerLike(proposal.paymentPerLike);
+    _requireMaxPaymentAmount(proposal.maxPaymentAmount);
   }
 
   // TODO: use proper function ordering in this file
-  function _requireCreatorIdMatchesDeal(string calldata creatorId, string calldata proposalCreatorId) internal view {
+  function _requireCreatorIdMatchesDeal(string calldata creatorId, string calldata proposalCreatorId) internal pure {
     if (keccak256(abi.encodePacked(creatorId)) != keccak256(abi.encodePacked(proposalCreatorId))) {
       revert CreatorIdsDiffer();
     }
   }
 
-  function _requireSponsorIdMatchesDeal(string calldata sponsorId, string calldata proposalSponsorId) internal view {
+  function _requireSponsorIdMatchesDeal(string calldata sponsorId, string calldata proposalSponsorId) internal pure {
     if (keccak256(abi.encodePacked(sponsorId)) != keccak256(abi.encodePacked(proposalSponsorId))) {
       revert SponsorIdsDiffer();
     }
@@ -206,56 +225,64 @@ contract SponsorshipMarketplace is ERC721Holder {
   function _insertDealRow(Proposal calldata proposal) internal {
     uint256 tableId = s_tableIds[DEALS_TABLE_INDEX];
 
-    // "deals",
-    //   "id text primary key, "
-    //   "creator_id text, "
-    //   "sponsor_id text, "
-    //   "status text, "
-    //   "payment_amount text, "
-    //   "payment_token text, "
-    //   "tweet_id text, "
-    //   "requirements text, "
-    //   "created_at integer, "
-    //   "delivery_deadline integer, "
-    //   "delivery_attempts integer"
     TablelandDeployments.get().mutate(address(this), tableId, _dealInsertSql(tableId, proposal));
   }
 
-  function _dealInsertSql(uint256 tableId, Proposal calldata proposal) internal returns (string memory) {
+  // "deals",
+  //   "id text primary key, "
+  //   "creator_id text, "
+  //   "sponsor_id text, "
+  //   "status text, "
+  //   "max_payment_amount text, "
+  //   "payment_per_like text, "
+  //   "payment_token text, "
+  //   "tweet_id text, "
+  //   "requirements text, "
+  //   "created_at integer, "
+  //   "delivery_deadline integer, "
+  //   "delivery_attempts integer"
+  function _dealInsertSql(uint256 tableId, Proposal calldata proposal) internal view returns (string memory) {
     string memory columns = "id,"
     "creator_id,"
     "sponsor_id,"
     "status,"
-    "payment_amount,"
+    "max_payment_amount,"
+    "payment_per_like,"
     "payment_token,"
     "requirements,"
     "created_at,"
     "delivery_deadline";
-    string memory values = string.concat(
-      SQLHelpers.quote(proposal.id),
-      ",",
-      SQLHelpers.quote(proposal.creatorId),
-      ",",
-      SQLHelpers.quote(proposal.sponsorId),
-      ",",
-      SQLHelpers.quote("NEW"),
-      ",",
-      proposal.paymentAmount.toString(),
-      ",",
-      SQLHelpers.quote(Strings.toHexString(uint160(s_paymentToken))),
-      ",",
-      "NULL",
-      ",",
-      SQLHelpers.quote(proposal.requirements),
-      ",",
-      block.timestamp.toString(),
-      ",",
-      proposal.deliveryDeadline.toString(),
-      ",",
-      "0"
-    );
 
-    return SQLHelpers.toInsert("deals", tableId, columns, values);
+    return SQLHelpers.toInsert("deals", tableId, columns, _dealSqlValues(proposal));
+  }
+
+  function _dealSqlValues(Proposal calldata proposal) internal view returns (string memory) {
+    return
+      string.concat(
+        string.concat(
+          SQLHelpers.quote(proposal.id),
+          ",",
+          SQLHelpers.quote(proposal.creatorId),
+          ",",
+          SQLHelpers.quote(proposal.sponsorId),
+          ",",
+          SQLHelpers.quote("NEW"),
+          ",",
+          proposal.maxPaymentAmount.toString()
+        ),
+        string.concat(
+          ",",
+          proposal.paymentPerLike.toString(),
+          ",",
+          SQLHelpers.quote(Strings.toHexString(uint160(s_paymentToken))),
+          ",",
+          SQLHelpers.quote(proposal.requirements),
+          ",",
+          block.timestamp.toString(),
+          ",",
+          proposal.deliveryDeadline.toString()
+        )
+      );
   }
 
   function _requireDealId(string calldata dealId) internal pure {
@@ -264,14 +291,14 @@ contract SponsorshipMarketplace is ERC721Holder {
     }
   }
 
-  function _requireCreatorId(string calldata creatorId) internal view {
-    if (s_creatorIds[creatorId]) {
+  function _requireCreatorId(string calldata creatorId) internal pure {
+    if (bytes(creatorId).length == 0) {
       revert CreatorIdMissing();
     }
   }
 
-  function _requireSponsorId(string calldata sponsorId) internal view {
-    if (s_sponsorIds[sponsorId]) {
+  function _requireSponsorId(string calldata sponsorId) internal pure {
+    if (bytes(sponsorId).length == 0) {
       revert SponsorIdMissing();
     }
   }
@@ -284,11 +311,23 @@ contract SponsorshipMarketplace is ERC721Holder {
 
   function _requireDeliveryDeadlineInFuture(uint256 deliveryDeadline) internal view {
     if (deliveryDeadline <= block.timestamp) {
-      revert DeliveryDeadlineInPast();
+      revert DeliveryDeadlineMustBeInFuture();
     }
   }
 
-  function _requireDealRequirements(string calldata requirements) internal view {
+  function _requireMaxPaymentAmount(uint256 maxPaymentAmount) internal pure {
+    if (maxPaymentAmount == 0) {
+      revert MaxPaymentAmountMissing();
+    }
+  }
+
+  function _requirePaymentPerLike(uint256 paymentPerLike) internal pure {
+    if (paymentPerLike == 0) {
+      revert PaymentPerLikeMissing();
+    }
+  }
+
+  function _requireDealRequirements(string calldata requirements) internal pure {
     if (bytes(requirements).length == 0) {
       revert RequirementsMissing();
     }
