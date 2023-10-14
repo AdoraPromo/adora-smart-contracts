@@ -73,24 +73,4 @@ describe("Sponsorship Marketplace", () => {
       expect(result).to.equal(100)
     })
   })
-
-  // const deployMarketplace = async () => {
-  //   const [owner, sponsor, creator] = await ethers.getSigners()
-
-  //   const Marketplace = await ethers.getContractFactory("SponsorshipMarketplace")
-  //   const marketplace = await Marketplace.deploy({ gasLimit: 2000000 })
-
-  //   return { marketplace, owner, sponsor, creator }
-  // }
-
-  // const createOffer = async (marketplace, sponsor) => {
-  //   const offerId = ethers.utils.hexlify(ethers.utils.randomBytes(32))
-
-  //   const timestamp = (await ethers.provider.getBlock("latest")).timestamp + 123
-  //   const offerData = ethers.utils.toUtf8Bytes("Some data here")
-
-  //   await (await marketplace.createOffer(offerId, timestamp, offerData)).wait()
-
-  //   return offerId
-  // }
 })
