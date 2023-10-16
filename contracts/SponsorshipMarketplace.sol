@@ -6,6 +6,7 @@ pragma solidity ^0.8.19;
 // import {FunctionsRequest} from "@chainlink/contracts/src/v0.8/functions/dev/v1_0_0/libraries/FunctionsRequest.sol";
 import "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
+import "@openzeppelin/contracts/utils/Base64.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 import "@tableland/evm/contracts/utils/TablelandDeployments.sol";
 import "@tableland/evm/contracts/utils/SQLHelpers.sol";
@@ -171,8 +172,7 @@ contract SponsorshipMarketplace is ERC721Holder {
     "encrypted_symmetric_key,"
     "encrypted_terms,"
     "redemption_expiration,"
-    "max_payment,"
-    "redeemed_amount";
+    "max_payment";
 
     return SQLHelpers.toInsert("deals", s_tableId, columns, _dealInsertSqlValues(dealId, deal));
   }
@@ -197,17 +197,27 @@ contract SponsorshipMarketplace is ERC721Holder {
     }
   }
 
+  //   "deals"
+  //     "id,"
+  //     "status,"
+  //     "sponsor_address,"
+  //     "creator_address,"
+  //     "terms_hash,"
+  //     "encrypted_symmetric_key,"
+  //     "encrypted_terms,"
+  //     "redemption_expiration,"
+  //     "max_payment,"
   function _dealInsertSqlValues(bytes32 dealId, Deal memory deal) internal pure returns (string memory) {
     return
       string.concat(
-        SQLHelpers.quote(string(abi.encodePacked(dealId))),
+        SQLHelpers.quote(Base64.encode(abi.encodePacked(dealId))),
         // The status is hardcoded as new
-        ",NEW,",
+        ",'NEW',",
         SQLHelpers.quote(Strings.toHexString(uint160(deal.sponsor))),
         ",",
         SQLHelpers.quote(Strings.toHexString(uint160(deal.creator))),
         ",",
-        SQLHelpers.quote(string(abi.encodePacked(deal.termsHash))),
+        SQLHelpers.quote(Base64.encode(abi.encodePacked(deal.termsHash))),
         ",",
         SQLHelpers.quote(deal.encryptedSymmetricKey),
         ",",
