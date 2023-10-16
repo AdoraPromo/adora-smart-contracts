@@ -14,7 +14,7 @@ describe("Marketplace deployment", () => {
     )
   })
 
-  it("mints the deals and users tables", async () => {
+  it("mints the deals table", async () => {
     const Marketplace = await ethers.getContractFactory("SponsorshipMarketplace")
 
     // NOTE: Registry address locally
@@ -33,41 +33,48 @@ describe("Marketplace deployment", () => {
     // TODO: for some reason hre.network.config is empty
     const chainId = 31337
 
+    // - id (text) - primary key
+    // - status (text)
+    // - sponsor_address (text)
+    // - creator_address (text)
+    // - terms_hash (text)
+    // - encrypted_symmetric_key (text)
+    // - encrypted_terms (text)
+    // - redemption_expiration (integer)
+    // - max_payment (text)
+    // - redeemed_amount (text)
+    // - encrypted_tweet_id (text)
     const dealsColumns =
       "id text primary key, " +
-      "creator_id text, " +
-      "sponsor_id text, " +
       "status text, " +
-      "max_payment_amount text, " +
-      "payment_per_like text, " +
-      "payment_token text, " +
-      "tweet_id text, " +
-      "requirements text, " +
-      "created_at integer, " +
-      "delivery_deadline integer, " +
-      "delivery_attempts integer"
-
-    const usersColumns = "id text primary key, " + "twitter_account_id text, " + "address text"
+      "sponsor_address text, " +
+      "creator_address text, " +
+      "terms_hash text, " +
+      "encrypted_symmetric_key text, " +
+      "encrypted_terms text, " +
+      "redemption_expiration integer, " +
+      "max_payment text, " +
+      "redeemed_amount text, " +
+      "encrypted_tweet_id text"
 
     const TRANSFER_EVENT_SIGNATURE = ethers.utils.keccak256(
       ethers.utils.toUtf8Bytes("Transfer(address,address,uint256)")
     )
 
-    ;[0, 1].forEach(() => {
-      const logs = deployTx.logs.filter(
-        (log) =>
-          log.topics[0] === TRANSFER_EVENT_SIGNATURE &&
-          BigNumber.from(log.topics[1]).toString() === "0" &&
-          log.topics[2].slice(-40).toLowerCase() === marketplace.address.slice(-40).toLowerCase()
-      )
+    const transferLogs = deployTx.logs.filter(
+      (log) =>
+        log.topics[0] === TRANSFER_EVENT_SIGNATURE &&
+        BigNumber.from(log.topics[1]).toString() === "0" && // from address(0)
+        log.topics[2].slice(-40).toLowerCase() === marketplace.address.slice(-40).toLowerCase() // to marketplace.address
+    )
 
-      expect(logs.length).to.eq(2)
-    })
+    expect(transferLogs.length).to.eq(1)
 
     await expect(marketplace.deployTransaction)
       .to.emit(tablelandRegistry, "CreateTable")
       .withArgs(marketplace.address, anyValue, `CREATE TABLE deals_${chainId}(${dealsColumns});`)
-      .and.to.emit(tablelandRegistry, "CreateTable")
-      .withArgs(marketplace.address, anyValue, `CREATE TABLE users_${chainId}(${usersColumns});`)
+
+    expect(await marketplace.s_tableId).not.to.eq(0)
+    expect(await marketplace.s_tableName).not.to.eq("")
   })
 })

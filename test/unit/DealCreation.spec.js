@@ -21,425 +21,243 @@ describe("Deal creation", () => {
     return { marketplace, apeCoin, tablelandRegistry, owner, sponsor, creator }
   }
 
-  const createDeal = async (marketplace, sponsor, creator) => {
-    const creatorData = {
-      // NOTE: just using address instead of UUID for convenience
-      id: creator.address,
-      accountAddress: creator.address,
-    }
+  it("reverts when payment token allowance is not set", async () => {
+    const { marketplace, sponsor } = await deployMarketplace()
 
-    const sponsorData = {
-      // NOTE: just using address instead of UUID for convenience
-      id: sponsor.address,
-      accountAddress: sponsor.address,
-    }
-
-    const proposalData = {
-      // NOTE: just using addresses instead of UUID for convenience
-      id: creator.address.slice(-20) + sponsor.address.slice(-20),
-      creatorId: creatorData.id,
-      sponsorId: sponsorData.id,
-      maxPaymentAmount: ethers.utils.parseEther("0.01"),
-      paymentPerLike: 100000,
-      requirements: "Post this URL in a tweet: mystuff.promo",
-      deliveryDeadline: (await ethers.provider.getBlock("latest")).timestamp + 123,
-    }
-
-    await (
-      await marketplace.connect(sponsor).createDeal(creatorData, sponsorData, proposalData, { gasLimit: 2000000 })
-    ).wait()
-
-    return proposalData.id
-  }
-
-  it("reverts when empty deal ID is provided", async () => {
-    const { marketplace, sponsor, creator } = await deployMarketplace()
-
-    const creatorData = {
-      // NOTE: just using address instead of UUID for convenience
-      id: creator.address,
-      accountAddress: creator.address,
-    }
-
-    const sponsorData = {
-      // NOTE: just using address instead of UUID for convenience
-      id: sponsor.address,
-      accountAddress: sponsor.address,
-    }
-
-    const proposalData = {
-      id: "",
-      creatorId: creatorData.id,
-      sponsorId: sponsorData.id,
-      maxPaymentAmount: ethers.utils.parseEther("0.01"),
-      paymentPerLike: 100000,
-      requirements: "Post this URL in a tweet: mystuff.promo",
-      deliveryDeadline: (await ethers.provider.getBlock("latest")).timestamp + 123,
-    }
+    const termsHash = ethers.utils.formatBytes32String("termsHash")
+    const encryptedSymmetricKey = Buffer.from("encryptedSymmetricKey").toString("base64")
+    const encryptedTerms = Buffer.from("encryptedTerms").toString("base64")
+    const maxPayment = 123
+    const latestTimestamp = (await ethers.provider.getBlock("latest")).timestamp
+    const redemptionExpiration = latestTimestamp + 1010
 
     await expect(
-      marketplace.connect(sponsor).createDeal(creatorData, sponsorData, proposalData, { gasLimit: 2000000 })
-    ).to.be.revertedWithCustomError(marketplace, "DealIdMissing")
+      marketplace
+        .connect(sponsor)
+        .createDeal(termsHash, encryptedSymmetricKey, encryptedTerms, maxPayment, redemptionExpiration, {
+          gasLimit: 2000000,
+        })
+    ).to.be.revertedWithCustomError(marketplace, "MaxValueAllowanceMissing")
   })
 
-  it("reverts when deal with provided ID already exists", async () => {
-    const { marketplace, sponsor, creator } = await deployMarketplace()
+  it("reverts when terms hash not set", async () => {
+    const { marketplace, apeCoin, sponsor } = await deployMarketplace()
 
-    const dealId = await createDeal(marketplace, sponsor, creator)
+    const encryptedSymmetricKey = Buffer.from("encryptedSymmetricKey").toString("base64")
+    const encryptedTerms = Buffer.from("encryptedTerms").toString("base64")
+    const maxPayment = 123
+    const latestTimestamp = (await ethers.provider.getBlock("latest")).timestamp
+    const redemptionExpiration = latestTimestamp + 1010
 
-    const creatorData = {
-      id: "26fecf0b-8238-48b2-b93e-854f2a8cdb10",
-      accountAddress: creator.address,
-    }
+    await (await apeCoin.connect(sponsor).increaseAllowance(marketplace.address, maxPayment)).wait()
 
-    const sponsorData = {
-      id: "865a22fc-1986-4205-8ffc-8916c1132cdc",
-      accountAddress: sponsor.address,
-    }
-
-    const proposalData = {
-      id: dealId,
-      creatorId: creatorData.id,
-      sponsorId: sponsorData.id,
-      maxPaymentAmount: ethers.utils.parseEther("0.01"),
-      paymentPerLike: 100000,
-      requirements: "Post this URL in a tweet: mystuff.promo",
-      deliveryDeadline: (await ethers.provider.getBlock("latest")).timestamp + 123,
-    }
+    const termsHash = ethers.utils.formatBytes32String("")
 
     await expect(
-      marketplace.connect(sponsor).createDeal(creatorData, sponsorData, proposalData)
+      marketplace
+        .connect(sponsor)
+        .createDeal(termsHash, encryptedSymmetricKey, encryptedTerms, maxPayment, redemptionExpiration, {
+          gasLimit: 2000000,
+        })
+    ).to.be.revertedWithCustomError(marketplace, "TermsHashMissing")
+  })
+
+  it("reverts when encrypted symmetric key not set", async () => {
+    const { marketplace, apeCoin, sponsor } = await deployMarketplace()
+
+    const termsHash = ethers.utils.formatBytes32String("termsHash")
+    const encryptedTerms = Buffer.from("encryptedTerms").toString("base64")
+    const maxPayment = 123
+    const latestTimestamp = (await ethers.provider.getBlock("latest")).timestamp
+    const redemptionExpiration = latestTimestamp + 1010
+
+    await (await apeCoin.connect(sponsor).increaseAllowance(marketplace.address, maxPayment)).wait()
+
+    const encryptedSymmetricKey = ""
+
+    await expect(
+      marketplace
+        .connect(sponsor)
+        .createDeal(termsHash, encryptedSymmetricKey, encryptedTerms, maxPayment, redemptionExpiration, {
+          gasLimit: 2000000,
+        })
+    ).to.be.revertedWithCustomError(marketplace, "EncryptedSymmetricKeyMissing")
+  })
+
+  it("reverts when encrypted terms not set", async () => {
+    const { marketplace, apeCoin, sponsor } = await deployMarketplace()
+
+    const termsHash = ethers.utils.formatBytes32String("termsHash")
+    const encryptedSymmetricKey = Buffer.from("encryptedSymmetricKey").toString("base64")
+    const maxPayment = 123
+    const latestTimestamp = (await ethers.provider.getBlock("latest")).timestamp
+    const redemptionExpiration = latestTimestamp + 1010
+
+    await (await apeCoin.connect(sponsor).increaseAllowance(marketplace.address, maxPayment)).wait()
+
+    const encryptedTerms = ""
+
+    await expect(
+      marketplace
+        .connect(sponsor)
+        .createDeal(termsHash, encryptedSymmetricKey, encryptedTerms, maxPayment, redemptionExpiration, {
+          gasLimit: 2000000,
+        })
+    ).to.be.revertedWithCustomError(marketplace, "EncryptedTermsMissing")
+  })
+
+  it("reverts when max payment not set", async () => {
+    const { marketplace, sponsor } = await deployMarketplace()
+
+    const termsHash = ethers.utils.formatBytes32String("termsHash")
+    const encryptedSymmetricKey = Buffer.from("encryptedSymmetricKey").toString("base64")
+    const encryptedTerms = Buffer.from("encryptedTerms").toString("base64")
+    const maxPayment = 0
+    const latestTimestamp = (await ethers.provider.getBlock("latest")).timestamp
+    const redemptionExpiration = latestTimestamp + 1010
+
+    await expect(
+      marketplace
+        .connect(sponsor)
+        .createDeal(termsHash, encryptedSymmetricKey, encryptedTerms, maxPayment, redemptionExpiration, {
+          gasLimit: 2000000,
+        })
+    ).to.be.revertedWithCustomError(marketplace, "MaxPaymentMissing")
+  })
+
+  it("reverts when redemption expiration is in past", async () => {
+    const { marketplace, sponsor } = await deployMarketplace()
+
+    const termsHash = ethers.utils.formatBytes32String("termsHash")
+    const encryptedSymmetricKey = Buffer.from("encryptedSymmetricKey").toString("base64")
+    const encryptedTerms = Buffer.from("encryptedTerms").toString("base64")
+    const maxPayment = 123
+    const latestTimestamp = (await ethers.provider.getBlock("latest")).timestamp
+    // Past timestamp
+    const redemptionExpiration = latestTimestamp - 100
+
+    await expect(
+      marketplace
+        .connect(sponsor)
+        .createDeal(termsHash, encryptedSymmetricKey, encryptedTerms, maxPayment, redemptionExpiration, {
+          gasLimit: 2000000,
+        })
+    ).to.be.revertedWithCustomError(marketplace, "RedemptionExpirationMustBeInFuture")
+  })
+
+  it("reverts when redemption expiration is the current time", async () => {
+    const { marketplace, sponsor } = await deployMarketplace()
+
+    const termsHash = ethers.utils.formatBytes32String("termsHash")
+    const encryptedSymmetricKey = Buffer.from("encryptedSymmetricKey").toString("base64")
+    const encryptedTerms = Buffer.from("encryptedTerms").toString("base64")
+    const maxPayment = 123
+    const latestTimestamp = (await ethers.provider.getBlock("latest")).timestamp
+    const nextTimestamp = latestTimestamp + 1
+
+    await time.setNextBlockTimestamp(nextTimestamp)
+
+    // Past timestamp
+    const redemptionExpiration = nextTimestamp
+
+    await expect(
+      marketplace
+        .connect(sponsor)
+        .createDeal(termsHash, encryptedSymmetricKey, encryptedTerms, maxPayment, redemptionExpiration, {
+          gasLimit: 2000000,
+        })
+    ).to.be.revertedWithCustomError(marketplace, "RedemptionExpirationMustBeInFuture")
+  })
+
+  it("reverts when an exact copy of deal already exists", async () => {
+    const { marketplace, apeCoin, sponsor } = await deployMarketplace()
+
+    const termsHash = ethers.utils.formatBytes32String("termsHash")
+    const encryptedSymmetricKey = Buffer.from("encryptedSymmetricKey").toString("base64")
+    const encryptedTerms = Buffer.from("encryptedTerms").toString("base64")
+    const maxPayment = 123
+    const latestTimestamp = (await ethers.provider.getBlock("latest")).timestamp
+    const redemptionExpiration = latestTimestamp + 1010
+
+    // NOTE: You can see that we increase allowance only once here and it still works.
+    //       Let's think about if that makes sense.
+    await (await apeCoin.connect(sponsor).increaseAllowance(marketplace.address, maxPayment)).wait()
+
+    await await marketplace
+      .connect(sponsor)
+      .createDeal(termsHash, encryptedSymmetricKey, encryptedTerms, maxPayment, redemptionExpiration, {
+        gasLimit: 2000000,
+      })
+
+    await expect(
+      marketplace
+        .connect(sponsor)
+        .createDeal(termsHash, encryptedSymmetricKey, encryptedTerms, maxPayment, redemptionExpiration, {
+          gasLimit: 2000000,
+        })
     ).to.be.revertedWithCustomError(marketplace, "DealAlreadyExists")
   })
 
-  it("reverts when delivery deadline is in past", async () => {
-    const { marketplace, sponsor, creator } = await deployMarketplace()
+  it("creates a deal onchain and in Tableland", async () => {
+    const { marketplace, apeCoin, tablelandRegistry, sponsor } = await deployMarketplace()
 
-    const creatorData = {
-      id: "26fecf0b-8238-48b2-b93e-854f2a8cdb10",
-      accountAddress: creator.address,
+    const terms = {
+      twitterUserId: 123123123,
+      paymentPerLike: "0x123",
+      sponsorshipCriteria: "Write something about John Doe Furniture, Inc",
     }
 
-    const sponsorData = {
-      id: "865a22fc-1986-4205-8ffc-8916c1132cdc",
-      accountAddress: sponsor.address,
-    }
-
-    const proposalData = {
-      id: "592a4299-f7e2-459b-8902-86053f387b0c",
-      creatorId: creatorData.id,
-      sponsorId: sponsorData.id,
-      maxPaymentAmount: ethers.utils.parseEther("0.01"),
-      paymentPerLike: 100000,
-      requirements: "Post this URL in a tweet: mystuff.promo",
-      deliveryDeadline: (await ethers.provider.getBlock("latest")).timestamp - 1,
-    }
-
-    await expect(
-      marketplace.connect(sponsor).createDeal(creatorData, sponsorData, proposalData)
-    ).to.be.revertedWithCustomError(marketplace, "DeliveryDeadlineMustBeInFuture")
-  })
-
-  it("reverts when delivery deadline is current timestamp", async () => {
-    const { marketplace, sponsor, creator } = await deployMarketplace()
-
-    const creatorData = {
-      id: "26fecf0b-8238-48b2-b93e-854f2a8cdb10",
-      accountAddress: creator.address,
-    }
-
-    const sponsorData = {
-      id: "865a22fc-1986-4205-8ffc-8916c1132cdc",
-      accountAddress: sponsor.address,
-    }
-
-    const proposalData = {
-      id: "592a4299-f7e2-459b-8902-86053f387b0c",
-      creatorId: creatorData.id,
-      sponsorId: sponsorData.id,
-      maxPaymentAmount: ethers.utils.parseEther("0.01"),
-      paymentPerLike: 100000,
-      requirements: "Post this URL in a tweet: mystuff.promo",
-      deliveryDeadline: (await ethers.provider.getBlock("latest")).timestamp,
-    }
-
-    await expect(
-      marketplace.connect(sponsor).createDeal(creatorData, sponsorData, proposalData)
-    ).to.be.revertedWithCustomError(marketplace, "DeliveryDeadlineMustBeInFuture")
-  })
-
-  it("reverts when proposal does not have a creator ID", async () => {
-    const { marketplace, sponsor, creator } = await deployMarketplace()
-
-    const creatorData = {
-      id: "26fecf0b-8238-48b2-b93e-854f2a8cdb10",
-      accountAddress: creator.address,
-    }
-
-    const sponsorData = {
-      id: "865a22fc-1986-4205-8ffc-8916c1132cdc",
-      accountAddress: sponsor.address,
-    }
-
-    const proposalData = {
-      id: "592a4299-f7e2-459b-8902-86053f387b0c",
-      creatorId: "",
-      sponsorId: sponsorData.id,
-      maxPaymentAmount: ethers.utils.parseEther("0.01"),
-      paymentPerLike: 100000,
-      requirements: "Post this URL in a tweet: mystuff.promo",
-      deliveryDeadline: (await ethers.provider.getBlock("latest")).timestamp,
-    }
-
-    await expect(
-      marketplace.connect(sponsor).createDeal(creatorData, sponsorData, proposalData)
-    ).to.be.revertedWithCustomError(marketplace, "CreatorIdMissing")
-  })
-
-  it("reverts when proposal creator ID does not match creator record ID", async () => {
-    const { marketplace, sponsor, creator } = await deployMarketplace()
-
-    const creatorData = {
-      id: "26fecf0b-8238-48b2-b93e-854f2a8cdb10",
-      accountAddress: creator.address,
-    }
-
-    const sponsorData = {
-      id: "865a22fc-1986-4205-8ffc-8916c1132cdc",
-      accountAddress: sponsor.address,
-    }
-
-    const proposalData = {
-      id: "592a4299-f7e2-459b-8902-86053f387b0c",
-      creatorId: "different-than-above",
-      sponsorId: sponsorData.id,
-      maxPaymentAmount: ethers.utils.parseEther("0.01"),
-      paymentPerLike: 100000,
-      requirements: "Post this URL in a tweet: mystuff.promo",
-      deliveryDeadline: (await ethers.provider.getBlock("latest")).timestamp,
-    }
-
-    await expect(
-      marketplace.connect(sponsor).createDeal(creatorData, sponsorData, proposalData)
-    ).to.be.revertedWithCustomError(marketplace, "CreatorIdsDiffer")
-  })
-
-  it("reverts when proposal does not have a sponsor ID", async () => {
-    const { marketplace, sponsor, creator } = await deployMarketplace()
-
-    const creatorData = {
-      id: "26fecf0b-8238-48b2-b93e-854f2a8cdb10",
-      accountAddress: creator.address,
-    }
-
-    const sponsorData = {
-      id: "865a22fc-1986-4205-8ffc-8916c1132cdc",
-      accountAddress: sponsor.address,
-    }
-
-    const proposalData = {
-      id: "592a4299-f7e2-459b-8902-86053f387b0c",
-      creatorId: creatorData.id,
-      sponsorId: "",
-      maxPaymentAmount: ethers.utils.parseEther("0.01"),
-      paymentPerLike: 100000,
-      requirements: "Post this URL in a tweet: mystuff.promo",
-      deliveryDeadline: (await ethers.provider.getBlock("latest")).timestamp,
-    }
-
-    await expect(
-      marketplace.connect(sponsor).createDeal(creatorData, sponsorData, proposalData)
-    ).to.be.revertedWithCustomError(marketplace, "SponsorIdMissing")
-  })
-
-  it("reverts when proposal sponsor ID does not match sponsor record ID", async () => {
-    const { marketplace, sponsor, creator } = await deployMarketplace()
-
-    const creatorData = {
-      id: "26fecf0b-8238-48b2-b93e-854f2a8cdb10",
-      accountAddress: creator.address,
-    }
-
-    const sponsorData = {
-      id: "865a22fc-1986-4205-8ffc-8916c1132cdc",
-      accountAddress: sponsor.address,
-    }
-
-    const proposalData = {
-      id: "592a4299-f7e2-459b-8902-86053f387b0c",
-      creatorId: creatorData.id,
-      sponsorId: "different-than-above",
-      maxPaymentAmount: ethers.utils.parseEther("0.01"),
-      paymentPerLike: 100000,
-      requirements: "Post this URL in a tweet: mystuff.promo",
-      deliveryDeadline: (await ethers.provider.getBlock("latest")).timestamp + 1,
-    }
-
-    await expect(
-      marketplace.connect(sponsor).createDeal(creatorData, sponsorData, proposalData)
-    ).to.be.revertedWithCustomError(marketplace, "SponsorIdsDiffer")
-  })
-
-  it("reverts when sponsor address does not match tx sender", async () => {
-    const { marketplace, sponsor, creator } = await deployMarketplace()
-
-    const creatorData = {
-      id: "26fecf0b-8238-48b2-b93e-854f2a8cdb10",
-      accountAddress: creator.address,
-    }
-
-    const sponsorData = {
-      id: "865a22fc-1986-4205-8ffc-8916c1132cdc",
-      accountAddress: creator.address,
-    }
-
-    const proposalData = {
-      id: "592a4299-f7e2-459b-8902-86053f387b0c",
-      creatorId: creatorData.id,
-      sponsorId: sponsorData.id,
-      maxPaymentAmount: ethers.utils.parseEther("0.01"),
-      paymentPerLike: 100000,
-      requirements: "Post this URL in a tweet: mystuff.promo",
-      deliveryDeadline: (await ethers.provider.getBlock("latest")).timestamp + 1,
-    }
-
-    await expect(
-      marketplace.connect(sponsor).createDeal(creatorData, sponsorData, proposalData)
-    ).to.be.revertedWithCustomError(marketplace, "SponsorAddressMustMatchSender")
-  })
-
-  it("reverts when no deal requirements are provided", async () => {
-    const { marketplace, sponsor, creator } = await deployMarketplace()
-
-    const creatorData = {
-      id: "26fecf0b-8238-48b2-b93e-854f2a8cdb10",
-      accountAddress: creator.address,
-    }
-
-    const sponsorData = {
-      id: "865a22fc-1986-4205-8ffc-8916c1132cdc",
-      accountAddress: sponsor.address,
-    }
-
-    const proposalData = {
-      id: "592a4299-f7e2-459b-8902-86053f387b0c",
-      creatorId: creatorData.id,
-      sponsorId: sponsorData.id,
-      maxPaymentAmount: ethers.utils.parseEther("0.01"),
-      paymentPerLike: 100000,
-      requirements: "",
-      deliveryDeadline: (await ethers.provider.getBlock("latest")).timestamp + 1,
-    }
-
-    await expect(
-      marketplace.connect(sponsor).createDeal(creatorData, sponsorData, proposalData)
-    ).to.be.revertedWithCustomError(marketplace, "RequirementsMissing")
-  })
-
-  it("reverts when no payment per like provided", async () => {
-    const { marketplace, sponsor, creator } = await deployMarketplace()
-
-    const creatorData = {
-      id: "26fecf0b-8238-48b2-b93e-854f2a8cdb10",
-      accountAddress: creator.address,
-    }
-
-    const sponsorData = {
-      id: "865a22fc-1986-4205-8ffc-8916c1132cdc",
-      accountAddress: sponsor.address,
-    }
-
-    const proposalData = {
-      id: "592a4299-f7e2-459b-8902-86053f387b0c",
-      creatorId: creatorData.id,
-      sponsorId: sponsorData.id,
-      maxPaymentAmount: ethers.utils.parseEther("0.01"),
-      paymentPerLike: 0,
-      requirements: "Post this url: asdf.com",
-      deliveryDeadline: (await ethers.provider.getBlock("latest")).timestamp + 123,
-    }
-
-    await expect(
-      marketplace.connect(sponsor).createDeal(creatorData, sponsorData, proposalData)
-    ).to.be.revertedWithCustomError(marketplace, "PaymentPerLikeMissing")
-  })
-
-  it("reverts when no max payment amount provided", async () => {
-    const { marketplace, sponsor, creator } = await deployMarketplace()
-
-    const creatorData = {
-      id: "26fecf0b-8238-48b2-b93e-854f2a8cdb10",
-      accountAddress: creator.address,
-    }
-
-    const sponsorData = {
-      id: "865a22fc-1986-4205-8ffc-8916c1132cdc",
-      accountAddress: sponsor.address,
-    }
-
-    const proposalData = {
-      id: "592a4299-f7e2-459b-8902-86053f387b0c",
-      creatorId: creatorData.id,
-      sponsorId: sponsorData.id,
-      maxPaymentAmount: 0,
-      paymentPerLike: 1000000,
-      requirements: "Post this url: asdf.com",
-      deliveryDeadline: (await ethers.provider.getBlock("latest")).timestamp + 123,
-    }
-
-    await expect(
-      marketplace.connect(sponsor).createDeal(creatorData, sponsorData, proposalData)
-    ).to.be.revertedWithCustomError(marketplace, "MaxPaymentAmountMissing")
-  })
-
-  it("Creates the deal and writes creator and sponsor data to tableland", async () => {
-    const { marketplace, apeCoin, tablelandRegistry, creator, sponsor } = await deployMarketplace()
-
-    const creatorData = {
-      id: "26fecf0b-8238-48b2-b93e-854f2a8cdb10",
-      accountAddress: creator.address,
-    }
-
-    const sponsorData = {
-      id: "865a22fc-1986-4205-8ffc-8916c1132cdc",
-      accountAddress: sponsor.address,
-    }
-
+    const termsHash = ethers.utils.keccak256(ethers.utils.toUtf8Bytes(JSON.stringify(terms)))
+    const encryptedSymmetricKey = Buffer.from("encryptedSymmetricKey").toString("base64")
+    const encryptedTerms = Buffer.from("encryptedTerms").toString("base64")
+    const maxPayment = 123
     const latestTimestamp = (await ethers.provider.getBlock("latest")).timestamp
+    const redemptionExpiration = latestTimestamp + 1010
 
-    const proposalData = {
-      id: "592a4299-f7e2-459b-8902-86053f387b0c",
-      creatorId: creatorData.id,
-      sponsorId: sponsorData.id,
-      maxPaymentAmount: ethers.utils.parseEther("0.01"),
-      paymentPerLike: 100000,
-      requirements: "Post this URL in a tweet: mystuff.promo",
-      deliveryDeadline: latestTimestamp + 123,
-    }
+    await (await apeCoin.connect(sponsor).increaseAllowance(marketplace.address, maxPayment)).wait()
 
-    const nextBlockTimestamp = latestTimestamp + 1
-
-    await time.setNextBlockTimestamp(nextBlockTimestamp)
-
-    const tx = await marketplace
+    const tx = marketplace
       .connect(sponsor)
-      .createDeal(creatorData, sponsorData, proposalData, { gasLimit: 2000000 })
+      .createDeal(termsHash, encryptedSymmetricKey, encryptedTerms, maxPayment, redemptionExpiration, {
+        gasLimit: 2000000,
+      })
 
-    const dealsTableIdx = await marketplace.DEALS_TABLE_INDEX()
-    const dealsTableName = await marketplace.s_tableNames(dealsTableIdx)
-
-    const insertStatement = `INSERT INTO ${dealsTableName}(id,creator_id,sponsor_id,status,max_payment_amount,payment_per_like,payment_token,requirements,created_at,delivery_deadline)VALUES('${
-      proposalData.id
-    }','${creatorData.id}','${sponsorData.id}','NEW',${proposalData.maxPaymentAmount},${
-      proposalData.paymentPerLike
-    },'${apeCoin.address.toLowerCase()}','Post this URL in a tweet: mystuff.promo',${nextBlockTimestamp},${
-      proposalData.deliveryDeadline
-    })`
+    const dealsTableName = await marketplace.s_tableName()
 
     await expect(tx)
       .to.emit(marketplace, "DealCreated")
-      .withArgs(proposalData.id)
       .and.to.emit(tablelandRegistry, "RunSQL")
-      .withArgs(marketplace.address, anyValue, anyValue, insertStatement, anyValue)
+      .withArgs(marketplace.address, anyValue, anyValue, anyValue, anyValue)
+
+    // TODO: is there another way we can wait for the table to be fully available here?
+    await new Promise((resolve) => setTimeout(resolve, 10000))
+
+    const tableName = await marketplace.s_tableName()
+    const selectLastDeal = encodeURIComponent(`select * from ${tableName} LIMIT 1`)
+    const response = await fetch(`http://localhost:8080/api/v1/query?statement=${selectLastDeal}`)
+    const dealRows = await response.json()
+    const deal = dealRows[0]
+
+    expect(dealRows.length).to.eq(1)
+
+    expect(deal.id).not.to.eq(null)
+    expect(deal.status).to.eq("NEW")
+    expect(deal.sponsor_address).to.eq(sponsor.address.toLowerCase())
+    expect(deal.creator_address).to.eq("0x00")
+
+    // Base64 decoding
+    const decodedTermsHash = ethers.utils.base64.decode(deal.terms_hash)
+
+    // Unpacking
+    const decodedValues = ethers.utils.defaultAbiCoder.decode(["bytes32"], decodedTermsHash)
+    const termsHashByte32 = decodedValues[0]
+
+    expect(termsHashByte32).to.eq(termsHash)
+    expect(deal.encrypted_symmetric_key).to.eq(encryptedSymmetricKey)
+    expect(deal.encrypted_terms).to.eq(encryptedTerms)
+    expect(deal.encrypted_tweet_id).to.eq(null)
+    expect(deal.max_payment).to.eq(`0x${maxPayment.toString("16")}`)
+    expect(deal.redeemed_amount).to.eq(null)
+    expect(deal.redemption_expiration).to.eq(redemptionExpiration)
   })
 })
