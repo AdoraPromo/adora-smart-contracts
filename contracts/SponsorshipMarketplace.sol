@@ -180,7 +180,7 @@ contract SponsorshipMarketplace is ERC721Holder {
   function _requireMarketplacePaymentTokenAllowance(uint256 maxPayment) internal view {
     uint256 allowance = s_paymentToken.allowance(msg.sender, address(this));
 
-    if (allowance >= maxPayment) {
+    if (allowance < maxPayment) {
       revert MaxValueAllowanceMissing();
     }
   }
