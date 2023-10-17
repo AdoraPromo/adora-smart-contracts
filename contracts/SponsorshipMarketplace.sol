@@ -140,15 +140,25 @@ contract SponsorshipMarketplace is ERC721Holder {
     uint256 maxPayment,
     uint256 redemptionExpiration
   ) internal view {
-    _requireTermsHash(termsHash);
+    if (termsHash == bytes32(0)) {
+      revert TermsHashMissing();
+    }
 
-    _requireEncryptedSymmetricKey(encryptedSymmetricKey);
+    if (bytes(encryptedSymmetricKey).length == 0) {
+      revert EncryptedSymmetricKeyMissing();
+    }
 
-    _requireEncryptedTerms(encryptedTerms);
+    if (bytes(encryptedTerms).length == 0) {
+      revert EncryptedTermsMissing();
+    }
 
-    _requireMaxPayment(maxPayment);
+    if (maxPayment == 0) {
+      revert MaxPaymentMissing();
+    }
 
-    _requireRedemptionExpirationInFuture(redemptionExpiration);
+    if (redemptionExpiration <= block.timestamp) {
+      revert RedemptionExpirationMustBeInFuture();
+    }
   }
 
   // "deals",
@@ -191,12 +201,6 @@ contract SponsorshipMarketplace is ERC721Holder {
     }
   }
 
-  function _requireRedemptionExpirationInFuture(uint256 redemptionExpiration) internal view {
-    if (redemptionExpiration <= block.timestamp) {
-      revert RedemptionExpirationMustBeInFuture();
-    }
-  }
-
   //   "deals"
   //     "id,"
   //     "status,"
@@ -212,7 +216,7 @@ contract SponsorshipMarketplace is ERC721Holder {
       string.concat(
         SQLHelpers.quote(Base64.encode(abi.encodePacked(dealId))),
         // The status is hardcoded as new
-        ",'NEW',",
+        ",'New',",
         SQLHelpers.quote(Strings.toHexString(uint160(deal.sponsor))),
         ",",
         SQLHelpers.quote(Strings.toHexString(uint160(deal.creator))),
@@ -227,29 +231,5 @@ contract SponsorshipMarketplace is ERC721Holder {
         ",",
         SQLHelpers.quote(Strings.toHexString(deal.maxPayment))
       );
-  }
-
-  function _requireTermsHash(bytes32 termsHash) internal pure {
-    if (termsHash == bytes32(0)) {
-      revert TermsHashMissing();
-    }
-  }
-
-  function _requireEncryptedSymmetricKey(string calldata encryptedSymmetricKey) internal pure {
-    if (bytes(encryptedSymmetricKey).length == 0) {
-      revert EncryptedSymmetricKeyMissing();
-    }
-  }
-
-  function _requireEncryptedTerms(string calldata encryptedTerms) internal pure {
-    if (bytes(encryptedTerms).length == 0) {
-      revert EncryptedTermsMissing();
-    }
-  }
-
-  function _requireMaxPayment(uint256 maxPayment) internal pure {
-    if (maxPayment == 0) {
-      revert MaxPaymentMissing();
-    }
   }
 }

@@ -241,7 +241,7 @@ describe("Deal creation", () => {
     expect(dealRows.length).to.eq(1)
 
     expect(deal.id).not.to.eq(null)
-    expect(deal.status).to.eq("NEW")
+    expect(deal.status).to.eq("New")
     expect(deal.sponsor_address).to.eq(sponsor.address.toLowerCase())
     expect(deal.creator_address).to.eq("0x00")
 
