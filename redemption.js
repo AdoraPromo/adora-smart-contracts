@@ -1,4 +1,4 @@
-const [encryptedSymmetricKeyBase64, encryptedOfferTermsBase64, encryptedTweetIdBase64] = args
+const [encryptedSymmetricKeyBase64, encryptedDealTermsBase64, encryptedTweetIdBase64] = args
 
 const fromBase64 = (str) =>
   new Uint8Array(
@@ -20,7 +20,7 @@ try {
     ["decrypt"]
   )
 } catch (e) {
-  throw Error(`Failed to import private decryption key: ${e.message}`)
+  throw Error(`Failed to import private decryption key`)
 }
 
 let symmetricKeyArrayBuffer
@@ -33,7 +33,7 @@ try {
     fromBase64(encryptedSymmetricKeyBase64)
   )
 } catch (e) {
-  throw Error(`Failed to decrypt symmetric key: ${e.message}`)
+  throw Error(`Failed to decrypt symmetric key`)
 }
 
 let symmetricKey
@@ -49,7 +49,7 @@ try {
     ["decrypt"]
   )
 } catch (e) {
-  throw Error(`Failed to import symmetric key: ${e.message}`)
+  throw Error(`Failed to import symmetric key`)
 }
 
 const symDecrypt = async (encryptedBase64, key) => {
@@ -65,18 +65,18 @@ const symDecrypt = async (encryptedBase64, key) => {
   return new TextDecoder().decode(decrypted)
 }
 
-let offerTerms
+let dealTerms
 try {
-  offerTerms = JSON.parse(await symDecrypt(encryptedOfferTermsBase64, symmetricKey))
+  dealTerms = JSON.parse(await symDecrypt(encryptedDealTermsBase64, symmetricKey))
 } catch (e) {
-  throw Error(`Failed to decrypt offer terms: ${e.message}`)
+  throw Error(`Failed to decrypt deal terms`)
 }
 
 let tweetId
 try {
   tweetId = await symDecrypt(encryptedTweetIdBase64, symmetricKey)
 } catch (e) {
-  throw Error(`Failed to decrypt tweet ID: ${e.message}`)
+  throw Error(`Failed to decrypt tweet ID`)
 }
 
 const twitterApiResponse = await Functions.makeHttpRequest({
@@ -95,8 +95,8 @@ if (!tweetData) {
   throw Error(`Failed to fetch tweet`)
 }
 
-if (tweetData.author_id !== offerTerms.twitterUserId) {
-  throw Error(`Tweet author ID does not match the user specified in the offer terms`)
+if (tweetData.author_id !== dealTerms.twitterUserId) {
+  throw Error(`Tweet author ID does not match the user specified in the deal terms`)
 }
 
 const tweetLikes = tweetData.public_metrics?.like_count
@@ -109,7 +109,7 @@ if (!tweetText) {
   throw Error(`Failed to fetch tweet text`)
 }
 
-const prompt = `The tweet is: "${tweetText}". The criteria are: "${offerTerms.sponsorshipCriteria}". Please provide a single word response of "yes" or "no" indicating if the tweet meets the criteria.`
+const prompt = `The tweet is: "${tweetText}". The criteria are: "${dealTerms.sponsorshipCriteria}". Please provide a single word response of "yes" or "no" indicating if the tweet meets the criteria.`
 
 const chatGptResponse = await Functions.makeHttpRequest({
   url: "https://api.openai.com/v1/chat/completions",
@@ -127,7 +127,6 @@ const chatGptResponse = await Functions.makeHttpRequest({
     temperature: 0.2,
   },
 })
-console.log(chatGptResponse)
 
 if (chatGptResponse.status !== 200) {
   throw Error(`Failed to analyze tweet. Status code ${chatGptApiResponse.status}`)
@@ -139,7 +138,7 @@ if (chatGptVerdict === undefined) {
 }
 
 if (chatGptVerdict.includes("yes")) {
-  return Functions.encodeUint256(BigInt(tweetLikes) * BigInt(offerTerms.paymentPerLike))
+  return Functions.encodeUint256(BigInt(tweetLikes) * BigInt(dealTerms.paymentPerLike))
 } else if (chatGptVerdict.includes("no")) {
   throw Error("Tweet does not meet criteria")
 } else {
