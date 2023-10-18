@@ -143,7 +143,6 @@ const deployFunctionsOracleContracts = async (deployer) => {
 
 const handleOracleRequest = async (requestEventData, mockCoordinator, admin, simulationConfigPath) => {
   const response = await simulateDONExecution(requestEventData, simulationConfigPath)
-
   const errorHexstring = response.errorString
     ? "0x" + Buffer.from(response.errorString.toString()).toString("hex")
     : undefined
@@ -169,7 +168,6 @@ const simulateDONExecution = async (requestEventData, simulationConfigPath) => {
   }
 
   const simulationConfig = simulationConfigPath ? require(simulationConfigPath) : {}
-
   // Perform the simulation numberOfSimulatedNodeExecution times
   const simulations = [...Array(numberOfSimulatedNodeExecutions)].map(async () => {
     try {
@@ -208,8 +206,9 @@ const simulateDONExecution = async (requestEventData, simulationConfigPath) => {
       responseBytesHexstring: aggregateMedian(successfulResponses.map((response) => response.responseBytesHexstring)),
     }
   } else {
+    const errorString = aggregateModeString(errorResponses.map((response) => response.errorString))
     return {
-      errorString: aggregateModeString(errorResponses.map((response) => response.errorString)),
+      errorString,
     }
   }
 }
@@ -236,14 +235,14 @@ const aggregateModeString = (items) => {
   const counts = {}
 
   for (const str of items) {
-    const existingCount = counts.get(str) || 0
-    counts.set(str, existingCount + 1)
+    const existingCount = counts[str] || 0
+    counts[str] = existingCount + 1
   }
 
   let modeString = items[0]
-  let maxCount = counts.get(modeString) || 0
+  let maxCount = counts[modeString] || 0
 
-  for (const [str, count] of counts.entries()) {
+  for (const [str, count] of Object.entries(counts)) {
     if (count > maxCount) {
       maxCount = count
       modeString = str

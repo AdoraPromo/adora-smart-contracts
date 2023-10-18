@@ -50,7 +50,6 @@ const createDeal = async (marketplace, apeCoin, sponsor, options = {}) => {
 }
 
 const createAndAcceptDeal = async (marketplace, database, apeCoin, sponsor, creator) => {
-  const latestTimestamp = (await ethers.provider.getBlock("latest")).timestamp
   const dealId = await createDeal(marketplace, apeCoin, sponsor)
 
   const accountOwnershipProof = Buffer.from("accountOwnershipProof").toString("base64")
@@ -120,7 +119,8 @@ describe("Deal acceptance", () => {
     )
 
     const acceptFunctionSource = acceptError ? `throw Error("${acceptError}");` : "return Functions.encodeUint256(1)"
-    await (await marketplace.setAcceptFunctionSource("return Functions.encodeUint256(1)")).wait()
+
+    await (await marketplace.setAcceptFunctionSource(acceptFunctionSource)).wait()
     await (await marketplace.setSubscriptionId(1)).wait()
 
     await (await database.setWriter(marketplace.address)).wait()
@@ -179,6 +179,43 @@ describe("Deal acceptance", () => {
     const { marketplace, database, apeCoin, sponsor, creator } = await deployMarketplace()
 
     await createAndAcceptDeal(marketplace, database, apeCoin, sponsor, creator)
+  })
+
+  it("does not accept a deal when account verification fails", async () => {
+    const acceptError = "Account ownership failed"
+    const { marketplace, database, apeCoin, sponsor, creator } = await deployMarketplace({ acceptError })
+
+    const dealId = await createDeal(marketplace, apeCoin, sponsor)
+
+    const accountOwnershipProof = Buffer.from("accountOwnershipProof").toString("base64")
+
+    const acceptTx = await (await marketplace.connect(creator).acceptDeal(dealId, accountOwnershipProof)).wait()
+
+    // TODO: figure out if we can handle this in a better way
+    await new Promise((resolve) => setTimeout(resolve, 10000))
+
+    const errorFilter = marketplace.filters.FunctionError()
+    const errorLogs = await marketplace.queryFilter(errorFilter)
+    expect(errorLogs.length).to.eq(1)
+    expect(decodeResult(errorLogs[0].args.errorMessage, "string")).to.eq(acceptError)
+
+    const dealFromContract = await marketplace.getDeal(dealId)
+    expect(dealFromContract.status).to.eq(0)
+
+    expect(dealFromContract.creator).to.eq(creator.address)
+
+    const tableName = await database.s_tableName()
+    const selectLastDeal = encodeURIComponent(`select * from ${tableName} LIMIT 1`)
+    const response = await fetch(`http://localhost:8080/api/v1/query?statement=${selectLastDeal}`)
+    const dealRows = await response.json()
+    const dealFromDB = dealRows[0]
+
+    expect(dealRows.length).to.eq(1)
+
+    expect(dealFromDB.id).not.to.eq(null)
+    expect(dealFromDB.status).to.eq("New")
+    expect(dealFromDB.sponsor_address).to.eq(sponsor.address.toLowerCase())
+    expect(dealFromDB.creator_address).to.eq("0x00")
   })
 
   it("reverts if the deal is already accepted", async () => {

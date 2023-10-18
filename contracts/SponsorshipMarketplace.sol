@@ -51,13 +51,11 @@ contract SponsorshipMarketplace is ERC721Holder, FunctionsClient, ConfirmedOwner
   uint64 private s_subscriptionId;
 
   string private s_acceptFunctionSource;
-  // TODO: add this
-  // string public redeemFunctionSource;
+  string private s_redeemFunctionSource;
 
   mapping(bytes32 id => Deal deal) private s_deals;
   mapping(bytes32 requestId => bytes32 dealId) private s_acceptRequests;
-  // TODO: add this
-  // mapping(bytes32 requestId => bool submitted) private s_redeemRequests;
+  mapping(bytes32 requestId => bytes32 dealId) private s_redeemRequests;
 
   error MaxValueAllowanceMissing();
   error DealAlreadyExists();
@@ -70,9 +68,14 @@ contract SponsorshipMarketplace is ERC721Holder, FunctionsClient, ConfirmedOwner
   error AccountOwnershipProofMissing();
   error DealExpired();
   error DealStatusMustBeNew();
+  error InvalidDealId();
+  error EncryptedTweetIdMissing();
 
   event DealCreated(bytes32 dealId);
   event DealAccepted(bytes32 dealId);
+  event DealRedeemed(bytes32 dealId, uint256 totalAmount);
+
+  event FunctionError(bytes errorMessage);
 
   constructor(
     address routerAddress,
@@ -93,6 +96,11 @@ contract SponsorshipMarketplace is ERC721Holder, FunctionsClient, ConfirmedOwner
   // TODO: test this
   function setAcceptFunctionSource(string calldata source) external {
     s_acceptFunctionSource = source;
+  }
+
+  // TODO: test this
+  function setRedeemFunctionSource(string calldata source) external {
+    s_redeemFunctionSource = source;
   }
 
   // TODO: test this
@@ -195,6 +203,7 @@ contract SponsorshipMarketplace is ERC721Holder, FunctionsClient, ConfirmedOwner
     req.secretsLocation = FunctionsRequest.Location.Remote;
     req.encryptedSecretsReference = s_encryptedSecretsReference;
 
+    // TODO: fix this
     string[] memory args = new string[](1);
     args[0] = accountOwnershipProof;
 
@@ -206,6 +215,44 @@ contract SponsorshipMarketplace is ERC721Holder, FunctionsClient, ConfirmedOwner
     s_deals[dealId].creator = msg.sender;
   }
 
+  function redeemDeal(bytes32 dealId, string calldata encryptedTweetId) external {
+    if (bytes(encryptedTweetId).length == 0) {
+      revert EncryptedTweetIdMissing();
+    }
+
+    Deal memory deal = s_deals[dealId];
+
+    if (deal.creator != msg.sender || deal.status != Status.ACCEPTED) {
+      revert InvalidDealId();
+    }
+
+    if (deal.redemptionExpiration < block.timestamp) {
+      revert DealExpired();
+    }
+
+    FunctionsRequest.Request memory req;
+
+    req.initializeRequest(
+      FunctionsRequest.Location.Inline,
+      FunctionsRequest.CodeLanguage.JavaScript,
+      s_redeemFunctionSource
+    );
+
+    req.secretsLocation = FunctionsRequest.Location.Remote;
+    req.encryptedSecretsReference = s_encryptedSecretsReference;
+
+    string[] memory args = new string[](3);
+    args[0] = deal.encryptedSymmetricKey;
+    args[1] = deal.encryptedTerms;
+    args[2] = encryptedTweetId;
+
+    req.setArgs(args);
+
+    bytes32 requestId = _sendRequest(req.encodeCBOR(), s_subscriptionId, 300000, s_donId);
+
+    s_redeemRequests[requestId] = dealId;
+  }
+
   /**
    * @notice Finish deal accepting or redeeming
    * @param requestId The request ID, returned by sendRequest()
@@ -215,8 +262,9 @@ contract SponsorshipMarketplace is ERC721Holder, FunctionsClient, ConfirmedOwner
    */
   function fulfillRequest(bytes32 requestId, bytes memory response, bytes memory err) internal override {
     bytes32 acceptedDealId = s_acceptRequests[requestId];
+    bytes32 redeemedDealId = s_redeemRequests[requestId];
 
-    if (acceptedDealId != bytes32(0) && response[31] == bytes1(0x01)) {
+    if (acceptedDealId != bytes32(0) && response.length > 0 && response[31] == bytes1(0x01)) {
       Deal storage deal = s_deals[acceptedDealId];
       deal.status = Status.ACCEPTED;
 
@@ -229,8 +277,19 @@ contract SponsorshipMarketplace is ERC721Holder, FunctionsClient, ConfirmedOwner
       require(s_database.updateDeal(acceptedDealId, setter));
 
       emit DealAccepted(acceptedDealId);
+    } else if (redeemedDealId != bytes32(0) && response.length == 32) {
+      Deal storage deal = s_deals[redeemedDealId];
+      deal.status = Status.REDEEMED;
+
+      uint256 redeemedAmount = uint256(bytes32(response));
+
+      string memory setter = string.concat("status='Redeemed',redeemed_amount='", redeemedAmount.toString(), "'");
+
+      require(s_database.updateDeal(redeemedDealId, setter));
+
+      emit DealRedeemed(redeemedDealId, redeemedAmount);
     } else {
-      require(false);
+      emit FunctionError(err);
     }
   }
 
