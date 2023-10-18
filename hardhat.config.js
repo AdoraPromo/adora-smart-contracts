@@ -11,7 +11,7 @@ const REPORT_GAS = process.env.REPORT_GAS?.toLowerCase() === "true" ? true : fal
 const SOLC_SETTINGS = {
   optimizer: {
     enabled: true,
-    runs: 1_000,
+    runs: 1,
   },
 }
 

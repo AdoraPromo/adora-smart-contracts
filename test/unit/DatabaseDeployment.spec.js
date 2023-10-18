@@ -4,31 +4,34 @@ const { anyValue } = require("@nomicfoundation/hardhat-chai-matchers/withArgs")
 
 const { BigNumber } = ethers
 
-describe("Marketplace deployment", () => {
-  it("reverts if payment token address is zero", async () => {
-    const Marketplace = await ethers.getContractFactory("SponsorshipMarketplace")
+const { decodeResult } = require("@chainlink/functions-toolkit")
+const { setupFunctionsTestnet } = require("../utils/utils")
 
-    await expect(Marketplace.deploy(ethers.constants.AddressZero, { gasLimit: 2000000 })).to.be.revertedWithCustomError(
-      Marketplace,
-      "PaymentTokenMissing"
-    )
+describe("Database deployment", () => {
+  let addConsumerContractToSubscription
+  let functionsRouterContract
+  let donId
+
+  before(async () => {
+    const setup = await setupFunctionsTestnet()
+
+    functionsRouterContract = setup.functionsRouterContract
+    addConsumerContractToSubscription = setup.addConsumerContractToSubscription
+    donId = setup.donId
   })
 
   it("mints the deals table", async () => {
-    const Marketplace = await ethers.getContractFactory("SponsorshipMarketplace")
-
     // NOTE: Registry address locally
     //       https://docs.tableland.xyz/smart-contracts/deployed-contracts#registry-contract
     const LOCAL_TABLELAND_REGISTRY = "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512"
 
     const tablelandRegistry = await ethers.getContractAt("ITablelandTables", LOCAL_TABLELAND_REGISTRY)
-    const ApeCoin = await ethers.getContractFactory("ApeCoin")
-    const apeCoin = await ApeCoin.deploy("ApeCoin", "APE", 100)
 
-    const marketplace = await Marketplace.deploy(apeCoin.address, { gasLimit: 2000000 })
-    await marketplace.deployed()
+    const Database = await ethers.getContractFactory("Database")
+    const database = await Database.deploy({ gasLimit: 2000000 })
+    await database.deployed()
 
-    const deployTx = await marketplace.deployTransaction.wait()
+    const deployTx = await database.deployTransaction.wait()
 
     // TODO: for some reason hre.network.config is empty
     const chainId = 31337
@@ -65,16 +68,16 @@ describe("Marketplace deployment", () => {
       (log) =>
         log.topics[0] === TRANSFER_EVENT_SIGNATURE &&
         BigNumber.from(log.topics[1]).toString() === "0" && // from address(0)
-        log.topics[2].slice(-40).toLowerCase() === marketplace.address.slice(-40).toLowerCase() // to marketplace.address
+        log.topics[2].slice(-40).toLowerCase() === database.address.slice(-40).toLowerCase() // to database.address
     )
 
     expect(transferLogs.length).to.eq(1)
 
-    await expect(marketplace.deployTransaction)
+    await expect(database.deployTransaction)
       .to.emit(tablelandRegistry, "CreateTable")
-      .withArgs(marketplace.address, anyValue, `CREATE TABLE deals_${chainId}(${dealsColumns});`)
+      .withArgs(database.address, anyValue, `CREATE TABLE deals_${chainId}(${dealsColumns});`)
 
-    expect(await marketplace.s_tableId).not.to.eq(0)
-    expect(await marketplace.s_tableName).not.to.eq("")
+    expect(await database.s_tableId).not.to.eq(0)
+    expect(await database.s_tableName).not.to.eq("")
   })
 })

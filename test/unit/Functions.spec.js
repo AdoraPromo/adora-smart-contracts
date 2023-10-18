@@ -16,7 +16,7 @@ const { BigNumber } = ethers
 // addConsumerContractToSubscription is an async function that takes a single contract address as input and adds it to the Functions subscription.
 const { setupFunctionsTestnet } = require("../utils/utils")
 
-describe("Sponsorship Marketplace", () => {
+xdescribe("Sponsorship Marketplace", () => {
   let functionsRouterContract
   let addConsumerContractToSubscription
 

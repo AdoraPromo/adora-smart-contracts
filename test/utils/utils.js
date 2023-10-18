@@ -23,7 +23,7 @@ const {
 
 const setupFunctionsTestnet = async () => {
   const [owner] = await ethers.getSigners()
-  const { linkTokenContract, functionsRouterContract, functionsMockCoordinatorContract } =
+  const { linkTokenContract, functionsRouterContract, functionsMockCoordinatorContract, donId } =
     await deployFunctionsOracleContracts(owner)
 
   functionsMockCoordinatorContract.on(
@@ -78,6 +78,7 @@ const setupFunctionsTestnet = async () => {
   }
 
   return {
+    donId,
     functionsRouterContract,
     addConsumerContractToSubscription,
   }
