@@ -26,6 +26,7 @@ const createDeal = async (marketplace, apeCoin, sponsor, options = {}) => {
   const latestTimestamp = (await ethers.provider.getBlock("latest")).timestamp
   const redemptionExpiration = options.redemptionExpiration ? options.redemptionExpiration : latestTimestamp + 1010
 
+  await (await apeCoin.transfer(sponsor.address, 200000)).wait()
   await (await apeCoin.connect(sponsor).increaseAllowance(marketplace.address, maxPayment)).wait()
 
   const createDealTx = await (
@@ -89,7 +90,6 @@ const createAndAcceptDeal = async (marketplace, database, apeCoin, sponsor, crea
 
 const redeemDeal = async (options) => {
   const { marketplace, database, apeCoin, sponsor, creator, redeemAmount } = options
-  // const { marketplace, database, apeCoin, sponsor, creator } = await deployMarketplace({ redeemAmount })
 
   const dealId = await createAndAcceptDeal(marketplace, database, apeCoin, sponsor, creator)
 
@@ -121,7 +121,12 @@ const redeemDeal = async (options) => {
 
   expect(dealFromDB.id).not.to.eq(null)
   expect(dealFromDB.status).to.eq("Redeemed")
-  expect(dealFromDB.redeemed_amount).to.eq(redeemAmount.toString())
+
+  const payout = redeemAmount > dealFromContract.maxPayment ? dealFromContract.maxPayment : redeemAmount
+
+  expect(dealFromDB.redeemed_amount).to.eq(payout.toString())
+
+  expect(await apeCoin.balanceOf(creator.address)).to.eq(payout)
 
   return dealId
 }
@@ -139,7 +144,7 @@ describe.only("Deal redeeming", () => {
     const [owner, sponsor, creator, creator2] = await ethers.getSigners()
 
     const ApeCoin = await ethers.getContractFactory("ApeCoin")
-    const apeCoin = await ApeCoin.deploy("ApeCoin", "APE", 100)
+    const apeCoin = await ApeCoin.deploy("ApeCoin", "APE", 1000000)
 
     const LOCAL_TABLELAND_REGISTRY = "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512"
     const tablelandRegistry = await ethers.getContractAt("ITablelandTables", LOCAL_TABLELAND_REGISTRY)

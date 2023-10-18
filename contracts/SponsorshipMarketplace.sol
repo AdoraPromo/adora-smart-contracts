@@ -266,6 +266,22 @@ contract SponsorshipMarketplace is ERC721Holder, FunctionsClient, ConfirmedOwner
 
     if (acceptedDealId != bytes32(0) && response.length > 0 && response[31] == bytes1(0x01)) {
       Deal storage deal = s_deals[acceptedDealId];
+
+      uint256 balance = s_paymentToken.balanceOf(deal.sponsor);
+      uint256 allowance = s_paymentToken.allowance(deal.sponsor, address(this));
+
+      if (balance < deal.maxPayment || allowance < deal.maxPayment) {
+        bytes memory empty = "";
+        emit FunctionError(empty);
+        return;
+      }
+
+      bool transferDone = s_paymentToken.transferFrom(deal.sponsor, address(this), deal.maxPayment);
+      if (!transferDone) {
+        bytes memory empty = "";
+        emit FunctionError(empty);
+      }
+
       deal.status = Status.ACCEPTED;
 
       string memory setter = string.concat(
@@ -279,11 +295,20 @@ contract SponsorshipMarketplace is ERC721Holder, FunctionsClient, ConfirmedOwner
       emit DealAccepted(acceptedDealId);
     } else if (redeemedDealId != bytes32(0) && response.length == 32) {
       Deal storage deal = s_deals[redeemedDealId];
-      deal.status = Status.REDEEMED;
 
       uint256 redeemedAmount = uint256(bytes32(response));
+      uint256 payout = redeemedAmount > deal.maxPayment ? deal.maxPayment : redeemedAmount;
 
-      string memory setter = string.concat("status='Redeemed',redeemed_amount='", redeemedAmount.toString(), "'");
+      bool transferDone = s_paymentToken.transfer(deal.creator, payout);
+
+      if (!transferDone) {
+        bytes memory empty = "";
+        emit FunctionError(empty);
+      }
+
+      deal.status = Status.REDEEMED;
+
+      string memory setter = string.concat("status='Redeemed',redeemed_amount='", payout.toString(), "'");
 
       require(s_database.updateDeal(redeemedDealId, setter));
 
