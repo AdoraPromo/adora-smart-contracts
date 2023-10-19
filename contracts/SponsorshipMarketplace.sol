@@ -39,6 +39,8 @@ contract SponsorshipMarketplace is ERC721Holder, FunctionsClient, ConfirmedOwner
     uint256 redemptionExpiration;
     uint256 maxPayment;
     string encryptedTweetId;
+    string sponsorEncryptedSymmetricKey;
+    string creatorEncryptedSymmetricKey;
   }
 
   using Strings for uint256;
@@ -120,7 +122,8 @@ contract SponsorshipMarketplace is ERC721Holder, FunctionsClient, ConfirmedOwner
     string calldata encryptedSymmetricKey,
     string calldata encryptedTerms,
     uint256 maxPayment,
-    uint256 redemptionExpiration
+    uint256 redemptionExpiration,
+    string calldata sponsorEncryptedSymmetricKey
   ) external returns (bytes32 dealId) {
     if (termsHash == bytes32(0)) {
       revert TermsHashMissing();
@@ -157,6 +160,8 @@ contract SponsorshipMarketplace is ERC721Holder, FunctionsClient, ConfirmedOwner
       encryptedTerms,
       redemptionExpiration,
       maxPayment,
+      sponsorEncryptedSymmetricKey,
+      "",
       ""
     );
 
@@ -175,7 +180,20 @@ contract SponsorshipMarketplace is ERC721Holder, FunctionsClient, ConfirmedOwner
     return s_deals[dealId];
   }
 
-  function acceptDeal(bytes32 dealId, string calldata accountOwnershipProof) external {
+  // These 2 functions are added for convenience
+  function getSponsorEncryptedSymmetricKey(bytes32 dealId) external view returns (string memory) {
+    return s_deals[dealId].sponsorEncryptedSymmetricKey;
+  }
+
+  function getCreatorEncryptedSymmetricKey(bytes32 dealId) external view returns (string memory) {
+    return s_deals[dealId].creatorEncryptedSymmetricKey;
+  }
+
+  function acceptDeal(
+    bytes32 dealId,
+    string calldata accountOwnershipProof,
+    string calldata creatorEncryptedSymmetricKey
+  ) external {
     if (dealId == bytes32(0)) {
       revert DealDoesNotExist();
     }
@@ -215,6 +233,7 @@ contract SponsorshipMarketplace is ERC721Holder, FunctionsClient, ConfirmedOwner
 
     s_acceptRequests[requestId] = dealId;
     s_deals[dealId].creator = msg.sender;
+    s_deals[dealId].creatorEncryptedSymmetricKey = creatorEncryptedSymmetricKey;
   }
 
   function redeemDeal(bytes32 dealId, string calldata encryptedTweetId) external {
