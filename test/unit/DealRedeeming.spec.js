@@ -12,6 +12,9 @@ let addConsumerContractToSubscription
 let functionsRouterContract
 let donId
 
+const SPONSOR_INITIAL_BALANCE = 200000
+const OWNER_INITIAL_BALANCE = 1000000
+
 const createDeal = async (marketplace, apeCoin, sponsor, options = {}) => {
   const terms = {
     twitterUserId: 123123123,
@@ -26,7 +29,6 @@ const createDeal = async (marketplace, apeCoin, sponsor, options = {}) => {
   const latestTimestamp = (await ethers.provider.getBlock("latest")).timestamp
   const redemptionExpiration = options.redemptionExpiration ? options.redemptionExpiration : latestTimestamp + 1010
 
-  await (await apeCoin.transfer(sponsor.address, 200000)).wait()
   await (await apeCoin.connect(sponsor).increaseAllowance(marketplace.address, maxPayment)).wait()
 
   const createDealTx = await (
@@ -89,7 +91,7 @@ const createAndAcceptDeal = async (marketplace, database, apeCoin, sponsor, crea
 }
 
 const redeemDeal = async (options) => {
-  const { marketplace, database, apeCoin, sponsor, creator, redeemAmount } = options
+  const { marketplace, database, apeCoin, owner, sponsor, creator, redeemAmount } = options
 
   const dealId = await createAndAcceptDeal(marketplace, database, apeCoin, sponsor, creator)
 
@@ -123,6 +125,14 @@ const redeemDeal = async (options) => {
   expect(dealFromDB.status).to.eq("Redeemed")
 
   const payout = redeemAmount > dealFromContract.maxPayment ? dealFromContract.maxPayment : redeemAmount
+  const refund = dealFromContract.maxPayment - redeemAmount
+
+  let expectedSponsorBalance = SPONSOR_INITIAL_BALANCE - dealFromContract.maxPayment
+  expectedSponsorBalance = refund > 0 ? expectedSponsorBalance - refund : expectedSponsorBalance
+
+  expect(await apeCoin.balanceOf(sponsor.address)).to.eq(expectedSponsorBalance)
+  expect(await apeCoin.balanceOf(owner.address)).to.eq(OWNER_INITIAL_BALANCE - SPONSOR_INITIAL_BALANCE)
+  expect(await apeCoin.balanceOf(marketplace.address)).to.eq(0)
 
   expect(dealFromDB.redeemed_amount).to.eq(payout.toString())
 
@@ -131,7 +141,7 @@ const redeemDeal = async (options) => {
   return dealId
 }
 
-describe.only("Deal redeeming", () => {
+describe("Deal redeeming", () => {
   before(async () => {
     const setup = await setupFunctionsTestnet()
 
@@ -144,7 +154,9 @@ describe.only("Deal redeeming", () => {
     const [owner, sponsor, creator, creator2] = await ethers.getSigners()
 
     const ApeCoin = await ethers.getContractFactory("ApeCoin")
-    const apeCoin = await ApeCoin.deploy("ApeCoin", "APE", 1000000)
+    const apeCoin = await ApeCoin.deploy("ApeCoin", "APE", OWNER_INITIAL_BALANCE)
+
+    await (await apeCoin.transfer(sponsor.address, SPONSOR_INITIAL_BALANCE)).wait()
 
     const LOCAL_TABLELAND_REGISTRY = "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512"
     const tablelandRegistry = await ethers.getContractAt("ITablelandTables", LOCAL_TABLELAND_REGISTRY)
@@ -322,12 +334,13 @@ describe.only("Deal redeeming", () => {
 
   it("reverts when redeeming an already redeemed deal", async () => {
     const redeemAmount = 123456
-    const { marketplace, database, apeCoin, sponsor, creator } = await deployMarketplace({ redeemAmount })
+    const { marketplace, database, apeCoin, sponsor, creator, owner } = await deployMarketplace({ redeemAmount })
 
     const options = {
       marketplace,
       database,
       apeCoin,
+      owner,
       sponsor,
       creator,
       redeemAmount,
@@ -345,12 +358,13 @@ describe.only("Deal redeeming", () => {
 
   it("redeems a deal", async () => {
     const redeemAmount = 123456
-    const { marketplace, database, apeCoin, sponsor, creator } = await deployMarketplace({ redeemAmount })
+    const { marketplace, database, apeCoin, sponsor, creator, owner } = await deployMarketplace({ redeemAmount })
 
     const options = {
       marketplace,
       database,
       apeCoin,
+      owner,
       sponsor,
       creator,
       redeemAmount,

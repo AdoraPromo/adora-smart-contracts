@@ -12,6 +12,9 @@ let addConsumerContractToSubscription
 let functionsRouterContract
 let donId
 
+const SPONSOR_INITIAL_BALANCE = 200000
+const OWNER_INITIAL_BALANCE = 1000000
+
 const createDeal = async (marketplace, apeCoin, sponsor, options = {}) => {
   const terms = {
     twitterUserId: 123123123,
@@ -22,7 +25,7 @@ const createDeal = async (marketplace, apeCoin, sponsor, options = {}) => {
   const termsHash = ethers.utils.keccak256(ethers.utils.toUtf8Bytes(JSON.stringify(terms)))
   const encryptedSymmetricKey = Buffer.from("encryptedSymmetricKey").toString("base64")
   const encryptedTerms = Buffer.from("encryptedTerms").toString("base64")
-  const maxPayment = 123
+  const maxPayment = options.maxPayment ? options.maxPayment : 123
   const latestTimestamp = (await ethers.provider.getBlock("latest")).timestamp
   const redemptionExpiration = options.redemptionExpiration ? options.redemptionExpiration : latestTimestamp + 1010
 
@@ -49,8 +52,9 @@ const createDeal = async (marketplace, apeCoin, sponsor, options = {}) => {
   return dealCreatedEvent.args.dealId
 }
 
-const createAndAcceptDeal = async (marketplace, database, apeCoin, sponsor, creator) => {
-  const dealId = await createDeal(marketplace, apeCoin, sponsor)
+const createAndAcceptDeal = async (marketplace, database, apeCoin, sponsor, creator, owner) => {
+  const maxPayment = 123
+  const dealId = await createDeal(marketplace, apeCoin, sponsor, { maxPayment })
 
   const accountOwnershipProof = Buffer.from("accountOwnershipProof").toString("base64")
 
@@ -84,6 +88,10 @@ const createAndAcceptDeal = async (marketplace, database, apeCoin, sponsor, crea
   expect(dealFromDB.sponsor_address).to.eq(sponsor.address.toLowerCase())
   expect(dealFromDB.creator_address).to.eq(creator.address.toLowerCase())
 
+  expect(await apeCoin.balanceOf(sponsor.address)).to.eq(SPONSOR_INITIAL_BALANCE - dealFromContract.maxPayment)
+  expect(await apeCoin.balanceOf(owner.address)).to.eq(OWNER_INITIAL_BALANCE - SPONSOR_INITIAL_BALANCE)
+  expect(await apeCoin.balanceOf(marketplace.address)).to.eq(maxPayment)
+
   return dealId
 }
 
@@ -100,7 +108,9 @@ describe("Deal acceptance", () => {
     const [owner, sponsor, creator] = await ethers.getSigners()
 
     const ApeCoin = await ethers.getContractFactory("ApeCoin")
-    const apeCoin = await ApeCoin.deploy("ApeCoin", "APE", 100)
+    const apeCoin = await ApeCoin.deploy("ApeCoin", "APE", OWNER_INITIAL_BALANCE)
+
+    await (await apeCoin.transfer(sponsor.address, SPONSOR_INITIAL_BALANCE)).wait()
 
     const LOCAL_TABLELAND_REGISTRY = "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512"
     const tablelandRegistry = await ethers.getContractAt("ITablelandTables", LOCAL_TABLELAND_REGISTRY)
@@ -176,9 +186,9 @@ describe("Deal acceptance", () => {
   })
 
   it("accepts a deal", async () => {
-    const { marketplace, database, apeCoin, sponsor, creator } = await deployMarketplace()
+    const { marketplace, database, apeCoin, sponsor, creator, owner } = await deployMarketplace()
 
-    await createAndAcceptDeal(marketplace, database, apeCoin, sponsor, creator)
+    await createAndAcceptDeal(marketplace, database, apeCoin, sponsor, creator, owner)
   })
 
   it("does not accept a deal when account verification fails", async () => {
@@ -219,9 +229,9 @@ describe("Deal acceptance", () => {
   })
 
   it("reverts if the deal is already accepted", async () => {
-    const { marketplace, database, apeCoin, sponsor, creator } = await deployMarketplace()
+    const { marketplace, database, apeCoin, sponsor, creator, owner } = await deployMarketplace()
 
-    const dealId = await createAndAcceptDeal(marketplace, database, apeCoin, sponsor, creator)
+    const dealId = await createAndAcceptDeal(marketplace, database, apeCoin, sponsor, creator, owner)
 
     const accountOwnershipProof = Buffer.from("accountOwnershipProof").toString("base64")
 

@@ -70,10 +70,12 @@ contract SponsorshipMarketplace is ERC721Holder, FunctionsClient, ConfirmedOwner
   error DealStatusMustBeNew();
   error InvalidDealId();
   error EncryptedTweetIdMissing();
+  error CannotWithdraw();
 
   event DealCreated(bytes32 dealId);
   event DealAccepted(bytes32 dealId);
   event DealRedeemed(bytes32 dealId, uint256 totalAmount);
+  event DealWithdrawn(bytes32 dealId);
 
   event FunctionError(bytes errorMessage);
 
@@ -253,6 +255,39 @@ contract SponsorshipMarketplace is ERC721Holder, FunctionsClient, ConfirmedOwner
     s_redeemRequests[requestId] = dealId;
   }
 
+  function withdrawDeal(bytes32 dealId) external {
+    Deal storage deal = s_deals[dealId];
+
+    if (deal.sponsor != msg.sender) {
+      revert CannotWithdraw();
+    }
+
+    // Allowed:
+    //   * new deal, not expired
+    //   * new deal, expired
+    //   * accepted deal, expired
+    // Not allowed:
+    //   * accepted deal, not expired
+    //   * redeemed deal, not expired
+    //   * redeemed deal, expired
+
+    if (
+      !(deal.status == Status.NEW || (deal.status == Status.ACCEPTED && deal.redemptionExpiration < block.timestamp))
+    ) {
+      revert CannotWithdraw();
+    }
+
+    if (deal.status == Status.ACCEPTED) {
+      require(s_paymentToken.transfer(deal.sponsor, deal.maxPayment));
+    }
+
+    deal.status = Status.WITHDRAWN;
+
+    require(s_database.updateDeal(dealId, "status='Withdrawn'"));
+
+    emit DealWithdrawn(dealId);
+  }
+
   /**
    * @notice Finish deal accepting or redeeming
    * @param requestId The request ID, returned by sendRequest()
@@ -298,10 +333,13 @@ contract SponsorshipMarketplace is ERC721Holder, FunctionsClient, ConfirmedOwner
 
       uint256 redeemedAmount = uint256(bytes32(response));
       uint256 payout = redeemedAmount > deal.maxPayment ? deal.maxPayment : redeemedAmount;
+      bool transfersDone = s_paymentToken.transfer(deal.creator, payout);
 
-      bool transferDone = s_paymentToken.transfer(deal.creator, payout);
+      if (redeemedAmount < deal.maxPayment) {
+        transfersDone = transfersDone && s_paymentToken.transfer(deal.sponsor, deal.maxPayment - redeemedAmount);
+      }
 
-      if (!transferDone) {
+      if (!transfersDone) {
         bytes memory empty = "";
         emit FunctionError(empty);
       }
