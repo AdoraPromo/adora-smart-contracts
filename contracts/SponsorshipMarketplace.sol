@@ -43,15 +43,15 @@ contract SponsorshipMarketplace is ERC721Holder, FunctionsClient, ConfirmedOwner
 
   using Strings for uint256;
 
-  ApeCoin private s_paymentToken;
-  Database private s_database;
+  ApeCoin public s_paymentToken;
+  Database public s_database;
 
-  bytes32 private s_donId;
-  bytes private s_encryptedSecretsReference;
-  uint64 private s_subscriptionId;
+  bytes32 public s_donId;
+  bytes public s_encryptedSecretsReference;
+  uint64 public s_subscriptionId;
 
-  string private s_acceptFunctionSource;
-  string private s_redeemFunctionSource;
+  string public s_acceptFunctionSource;
+  string public s_redeemFunctionSource;
 
   mapping(bytes32 id => Deal deal) private s_deals;
   mapping(bytes32 requestId => bytes32 dealId) private s_acceptRequests;
