@@ -4,7 +4,7 @@ const fs = require("fs")
 const path = require("path")
 
 task("adora-deploy", "Deploys the Adora.Promo contracts").setAction(async () => {
-  let nonce = 16
+  let nonce = 38
   let gasPrice = 100000000000
 
   console.log("\n__Compiling Contracts__")
@@ -64,6 +64,8 @@ task("adora-deploy", "Deploys the Adora.Promo contracts").setAction(async () => 
     }
   }
   console.log("SponsorshipMarketplace contract verified")
+  await (await database.setWriter(marketplace.address, { gasLimit: 10000000, gasPrice, nonce })).wait()
+  nonce++
 
   const subscriptionId = 21
   const signer = await ethers.getSigner()
