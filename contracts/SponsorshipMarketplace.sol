@@ -160,8 +160,8 @@ contract SponsorshipMarketplace is ERC721Holder, FunctionsClient, ConfirmedOwner
       encryptedTerms,
       redemptionExpiration,
       maxPayment,
-      sponsorEncryptedSymmetricKey,
       "",
+      sponsorEncryptedSymmetricKey,
       ""
     );
 
@@ -178,6 +178,11 @@ contract SponsorshipMarketplace is ERC721Holder, FunctionsClient, ConfirmedOwner
 
   function getDeal(bytes32 dealId) external view returns (Deal memory) {
     return s_deals[dealId];
+  }
+
+  function canUserDecrypt(address user, bytes32 dealId) external view returns (bool) {
+    return
+      s_deals[dealId].sponsor == user || (s_deals[dealId].creator == user && s_deals[dealId].status == Status.ACCEPTED);
   }
 
   // These 2 functions are added for convenience
@@ -224,8 +229,10 @@ contract SponsorshipMarketplace is ERC721Holder, FunctionsClient, ConfirmedOwner
     req.encryptedSecretsReference = s_encryptedSecretsReference;
 
     // TODO: fix this
-    string[] memory args = new string[](1);
-    args[0] = accountOwnershipProof;
+    string[] memory args = new string[](3);
+    args[0] = deal.encryptedSymmetricKey;
+    args[1] = deal.encryptedTerms;
+    args[2] = accountOwnershipProof;
 
     req.setArgs(args);
 

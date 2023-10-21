@@ -4,7 +4,7 @@ const fs = require("fs")
 const path = require("path")
 
 task("adora-deploy", "Deploys the Adora.Promo contracts").setAction(async () => {
-  let nonce = 38
+  let nonce = 126
   let gasPrice = 100000000000
 
   console.log("\n__Compiling Contracts__")
