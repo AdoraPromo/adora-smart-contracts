@@ -55,9 +55,12 @@ const createDeal = async (marketplace, apeCoin, sponsor, options = {}) => {
 const createAndAcceptDeal = async (marketplace, database, apeCoin, sponsor, creator) => {
   const dealId = await createDeal(marketplace, apeCoin, sponsor)
 
+  const creatorEncryptedSymmetricKey = Buffer.from("creatorEncryptedSymmetricKey").toString("base64")
   const accountOwnershipProof = Buffer.from("accountOwnershipProof").toString("base64")
 
-  const acceptTx = await (await marketplace.connect(creator).acceptDeal(dealId, accountOwnershipProof)).wait()
+  const acceptTx = await (
+    await marketplace.connect(creator).acceptDeal(dealId, accountOwnershipProof, creatorEncryptedSymmetricKey)
+  ).wait()
 
   // TODO: figure out if we can handle this in a better way
   await new Promise((resolve) => setTimeout(resolve, 10000))
@@ -211,9 +214,12 @@ describe("Deal redeeming", () => {
 
     const dealId = await createDeal(marketplace, apeCoin, sponsor, { redemptionExpiration })
 
+    const creatorEncryptedSymmetricKey = Buffer.from("creatorEncryptedSymmetricKey").toString("base64")
     const accountOwnershipProof = Buffer.from("accountOwnershipProof").toString("base64")
 
-    await (await marketplace.connect(creator).acceptDeal(dealId, accountOwnershipProof)).wait()
+    await (
+      await marketplace.connect(creator).acceptDeal(dealId, accountOwnershipProof, creatorEncryptedSymmetricKey)
+    ).wait()
 
     await expect(marketplace.connect(creator).redeemDeal(dealId, "")).to.revertedWithCustomError(
       marketplace,
@@ -245,9 +251,12 @@ describe("Deal redeeming", () => {
 
     const dealId = await createDeal(marketplace, apeCoin, sponsor, { redemptionExpiration })
 
+    const creatorEncryptedSymmetricKey = Buffer.from("creatorEncryptedSymmetricKey").toString("base64")
     const accountOwnershipProof = Buffer.from("accountOwnershipProof").toString("base64")
 
-    await (await marketplace.connect(creator).acceptDeal(dealId, accountOwnershipProof)).wait()
+    await (
+      await marketplace.connect(creator).acceptDeal(dealId, accountOwnershipProof, creatorEncryptedSymmetricKey)
+    ).wait()
 
     await new Promise((resolve) => setTimeout(resolve, 10000))
 
@@ -276,9 +285,12 @@ describe("Deal redeeming", () => {
 
     const dealId = await createDeal(marketplace, apeCoin, sponsor, { redemptionExpiration })
 
+    const creatorEncryptedSymmetricKey = Buffer.from("creatorEncryptedSymmetricKey").toString("base64")
     const accountOwnershipProof = Buffer.from("accountOwnershipProof").toString("base64")
 
-    await (await marketplace.connect(creator).acceptDeal(dealId, accountOwnershipProof)).wait()
+    await (
+      await marketplace.connect(creator).acceptDeal(dealId, accountOwnershipProof, creatorEncryptedSymmetricKey)
+    ).wait()
 
     const encryptedTweetId = Buffer.from("encryptedTweetId").toString("base64")
 
@@ -297,9 +309,12 @@ describe("Deal redeeming", () => {
 
     const dealId = await createDeal(marketplace, apeCoin, sponsor, { redemptionExpiration })
 
+    const creatorEncryptedSymmetricKey = Buffer.from("creatorEncryptedSymmetricKey").toString("base64")
     const accountOwnershipProof = Buffer.from("accountOwnershipProof").toString("base64")
 
-    await (await marketplace.connect(creator).acceptDeal(dealId, accountOwnershipProof)).wait()
+    await (
+      await marketplace.connect(creator).acceptDeal(dealId, accountOwnershipProof, creatorEncryptedSymmetricKey)
+    ).wait()
 
     // TODO: figure out if we can handle this in a better way
     await new Promise((resolve) => setTimeout(resolve, 10000))

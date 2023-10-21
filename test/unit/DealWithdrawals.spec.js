@@ -100,9 +100,12 @@ describe("Deal withdrawals", () => {
     const { marketplace, database, apeCoin, sponsor, creator, owner, redemptionExpiration } = options
     const maxPayment = 123
     const dealId = await createDeal(marketplace, apeCoin, sponsor, { maxPayment, redemptionExpiration })
+    const creatorEncryptedSymmetricKey = Buffer.from("creatorEncryptedSymmetricKey").toString("base64")
     const accountOwnershipProof = Buffer.from("accountOwnershipProof").toString("base64")
 
-    const acceptTx = await (await marketplace.connect(creator).acceptDeal(dealId, accountOwnershipProof)).wait()
+    const acceptTx = await (
+      await marketplace.connect(creator).acceptDeal(dealId, accountOwnershipProof, creatorEncryptedSymmetricKey)
+    ).wait()
 
     // TODO: figure out if we can handle this in a better way
     await new Promise((resolve) => setTimeout(resolve, 10000))
