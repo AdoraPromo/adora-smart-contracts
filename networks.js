@@ -141,7 +141,9 @@ const networks = {
     donId: "local-functions-testnet",
   },
 }
+const developmentChains = ["hardhat", "localhost", "local-tableland"]
 
 module.exports = {
   networks,
+  developmentChains,
 }

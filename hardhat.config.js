@@ -1,6 +1,8 @@
 require("@nomicfoundation/hardhat-toolbox")
 require("hardhat-contract-sizer")
 require("./tasks")
+require("@tableland/hardhat")
+
 const { networks } = require("./networks")
 
 // Enable gas reporting (optional)
@@ -9,13 +11,13 @@ const REPORT_GAS = process.env.REPORT_GAS?.toLowerCase() === "true" ? true : fal
 const SOLC_SETTINGS = {
   optimizer: {
     enabled: true,
-    runs: 1_000,
+    runs: 1,
   },
 }
 
 /** @type import('hardhat/config').HardhatUserConfig */
 module.exports = {
-  defaultNetwork: "localFunctionsTestnet",
+  defaultNetwork: "local-tableland",
   solidity: {
     compilers: [
       {
