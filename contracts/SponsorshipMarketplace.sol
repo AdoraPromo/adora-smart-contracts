@@ -228,7 +228,6 @@ contract SponsorshipMarketplace is ERC721Holder, FunctionsClient, ConfirmedOwner
     req.secretsLocation = FunctionsRequest.Location.Remote;
     req.encryptedSecretsReference = s_encryptedSecretsReference;
 
-    // TODO: fix this
     string[] memory args = new string[](3);
     args[0] = deal.encryptedSymmetricKey;
     args[1] = deal.encryptedTerms;
