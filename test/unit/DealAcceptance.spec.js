@@ -56,9 +56,12 @@ const createAndAcceptDeal = async (marketplace, database, apeCoin, sponsor, crea
   const maxPayment = 123
   const dealId = await createDeal(marketplace, apeCoin, sponsor, { maxPayment })
 
+  const creatorEncryptedSymmetricKey = Buffer.from("creatorEncryptedSymmetricKey").toString("base64")
   const accountOwnershipProof = Buffer.from("accountOwnershipProof").toString("base64")
 
-  const acceptTx = await (await marketplace.connect(creator).acceptDeal(dealId, accountOwnershipProof)).wait()
+  const acceptTx = await (
+    await marketplace.connect(creator).acceptDeal(dealId, accountOwnershipProof, creatorEncryptedSymmetricKey)
+  ).wait()
 
   // TODO: figure out if we can handle this in a better way
   await new Promise((resolve) => setTimeout(resolve, 10000))
@@ -145,13 +148,13 @@ describe("Deal acceptance", () => {
 
     await createDeal(marketplace, apeCoin, sponsor)
 
+    const creatorEncryptedSymmetricKey = Buffer.from("creatorEncryptedSymmetricKey").toString("base64")
     const accountOwnershipProof = Buffer.from("accountOwnershipProof").toString("base64")
     const dealId = ethers.utils.formatBytes32String("")
 
-    await expect(marketplace.acceptDeal(dealId, accountOwnershipProof)).to.be.revertedWithCustomError(
-      marketplace,
-      "DealDoesNotExist"
-    )
+    await expect(
+      marketplace.acceptDeal(dealId, accountOwnershipProof, creatorEncryptedSymmetricKey)
+    ).to.be.revertedWithCustomError(marketplace, "DealDoesNotExist")
   })
 
   it("reverts when account ownership proof not provided", async () => {
@@ -159,12 +162,12 @@ describe("Deal acceptance", () => {
 
     const dealId = await createDeal(marketplace, apeCoin, sponsor)
 
+    const creatorEncryptedSymmetricKey = Buffer.from("creatorEncryptedSymmetricKey").toString("base64")
     const accountOwnershipProof = ""
 
-    await expect(marketplace.acceptDeal(dealId, accountOwnershipProof)).to.be.revertedWithCustomError(
-      marketplace,
-      "AccountOwnershipProofMissing"
-    )
+    await expect(
+      marketplace.acceptDeal(dealId, accountOwnershipProof, creatorEncryptedSymmetricKey)
+    ).to.be.revertedWithCustomError(marketplace, "AccountOwnershipProofMissing")
   })
 
   it("reverts if the deal has expired", async () => {
@@ -177,12 +180,12 @@ describe("Deal acceptance", () => {
 
     await time.setNextBlockTimestamp(redemptionExpiration + 1)
 
+    const creatorEncryptedSymmetricKey = Buffer.from("creatorEncryptedSymmetricKey").toString("base64")
     const accountOwnershipProof = Buffer.from("accountOwnershipProof").toString("base64")
 
-    await expect(marketplace.acceptDeal(dealId, accountOwnershipProof)).to.be.revertedWithCustomError(
-      marketplace,
-      "DealExpired"
-    )
+    await expect(
+      marketplace.acceptDeal(dealId, accountOwnershipProof, creatorEncryptedSymmetricKey)
+    ).to.be.revertedWithCustomError(marketplace, "DealExpired")
   })
 
   it("accepts a deal", async () => {
@@ -197,9 +200,12 @@ describe("Deal acceptance", () => {
 
     const dealId = await createDeal(marketplace, apeCoin, sponsor)
 
+    const creatorEncryptedSymmetricKey = Buffer.from("creatorEncryptedSymmetricKey").toString("base64")
     const accountOwnershipProof = Buffer.from("accountOwnershipProof").toString("base64")
 
-    const acceptTx = await (await marketplace.connect(creator).acceptDeal(dealId, accountOwnershipProof)).wait()
+    const acceptTx = await (
+      await marketplace.connect(creator).acceptDeal(dealId, accountOwnershipProof, creatorEncryptedSymmetricKey)
+    ).wait()
 
     // TODO: figure out if we can handle this in a better way
     await new Promise((resolve) => setTimeout(resolve, 10000))
@@ -233,11 +239,12 @@ describe("Deal acceptance", () => {
 
     const dealId = await createAndAcceptDeal(marketplace, database, apeCoin, sponsor, creator, owner)
 
+    const creatorEncryptedSymmetricKey = Buffer.from("creatorEncryptedSymmetricKey").toString("base64")
     const accountOwnershipProof = Buffer.from("accountOwnershipProof").toString("base64")
 
-    await expect(marketplace.acceptDeal(dealId, accountOwnershipProof)).to.be.revertedWithCustomError(
-      marketplace,
-      "DealStatusMustBeNew"
-    )
+    await expect(
+      marketplace.acceptDeal(dealId, accountOwnershipProof, creatorEncryptedSymmetricKey)
+    ).to.be.revertedWithCustomError(marketplace, "DealStatusMustBeNew")
   })
+  // TODO: add test cases for missing creatorEncryptedSymmetricKey
 })
