@@ -90,6 +90,7 @@ const proofVerificationResponse = await Functions.makeHttpRequest({
   url: `https://sismo-connect-btn.vercel.app/api/verify`,
   method: "POST",
   data: accountOwnershipProofObj,
+  timeout: 8000,
 })
 
 if (proofVerificationResponse.status !== 200) {
