@@ -55,8 +55,14 @@ contract SponsorshipMarketplace is ERC721Holder, FunctionsClient, ConfirmedOwner
   string public s_acceptFunctionSource;
   string public s_redeemFunctionSource;
 
+  struct PendingCreator {
+    bytes32 dealId;
+    address pendingCreator;
+    string creatorEncryptedSymmetricKey;
+  }
+
   mapping(bytes32 id => Deal deal) private s_deals;
-  mapping(bytes32 requestId => bytes32 dealId) private s_acceptRequests;
+  mapping(bytes32 requestId => PendingCreator) private s_acceptRequests;
   mapping(bytes32 requestId => bytes32 dealId) private s_redeemRequests;
 
   error MaxValueAllowanceMissing();
@@ -236,9 +242,13 @@ contract SponsorshipMarketplace is ERC721Holder, FunctionsClient, ConfirmedOwner
 
     bytes32 requestId = _sendRequest(req.encodeCBOR(), s_subscriptionId, 300000, s_donId);
 
-    s_acceptRequests[requestId] = dealId;
-    s_deals[dealId].creator = msg.sender;
-    s_deals[dealId].creatorEncryptedSymmetricKey = creatorEncryptedSymmetricKey;
+    PendingCreator memory pendingCreator = PendingCreator({
+      dealId: dealId,
+      pendingCreator: msg.sender,
+      creatorEncryptedSymmetricKey: creatorEncryptedSymmetricKey
+    });
+
+    s_acceptRequests[requestId] = pendingCreator;
   }
 
   function redeemDeal(bytes32 dealId, string calldata encryptedTweetId) external {
@@ -321,11 +331,13 @@ contract SponsorshipMarketplace is ERC721Holder, FunctionsClient, ConfirmedOwner
    * Either response or error parameter will be set, but never both
    */
   function fulfillRequest(bytes32 requestId, bytes memory response, bytes memory err) internal override {
-    bytes32 acceptedDealId = s_acceptRequests[requestId];
+    PendingCreator memory pendingCreator = s_acceptRequests[requestId];
     bytes32 redeemedDealId = s_redeemRequests[requestId];
 
-    if (acceptedDealId != bytes32(0) && response.length > 0 && response[31] == bytes1(0x01)) {
-      Deal storage deal = s_deals[acceptedDealId];
+    if (pendingCreator.dealId != bytes32(0) && response.length > 0 && response[31] == bytes1(0x01)) {
+      Deal storage deal = s_deals[pendingCreator.dealId];
+      deal.creator = pendingCreator.pendingCreator;
+      deal.creatorEncryptedSymmetricKey = pendingCreator.creatorEncryptedSymmetricKey;
 
       uint256 balance = s_paymentToken.balanceOf(deal.sponsor);
       uint256 allowance = s_paymentToken.allowance(deal.sponsor, address(this));
@@ -350,9 +362,9 @@ contract SponsorshipMarketplace is ERC721Holder, FunctionsClient, ConfirmedOwner
         "'"
       );
 
-      require(s_database.updateDeal(acceptedDealId, setter));
+      require(s_database.updateDeal(pendingCreator.dealId, setter));
 
-      emit DealAccepted(acceptedDealId);
+      emit DealAccepted(pendingCreator.dealId);
     } else if (redeemedDealId != bytes32(0) && response.length == 32) {
       Deal storage deal = s_deals[redeemedDealId];
 
