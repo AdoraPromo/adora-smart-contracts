@@ -146,7 +146,7 @@ const redeemDeal = async (options) => {
   return dealId
 }
 
-describe.only("Deal redeeming", () => {
+describe("Deal redeeming", () => {
   before(async () => {
     const setup = await setupFunctionsTestnet()
 
