@@ -246,7 +246,7 @@ contract SponsorshipMarketplace is ERC721Holder, FunctionsClient, ConfirmedOwner
       revert EncryptedTweetIdMissing();
     }
 
-    Deal memory deal = s_deals[dealId];
+    Deal storage deal = s_deals[dealId];
 
     if (deal.creator != msg.sender || deal.status != Status.ACCEPTED) {
       revert InvalidDealId();
@@ -276,6 +276,7 @@ contract SponsorshipMarketplace is ERC721Holder, FunctionsClient, ConfirmedOwner
 
     bytes32 requestId = _sendRequest(req.encodeCBOR(), s_subscriptionId, 300000, s_donId);
 
+    deal.encryptedTweetId = encryptedTweetId;
     s_redeemRequests[requestId] = dealId;
   }
 
@@ -370,7 +371,14 @@ contract SponsorshipMarketplace is ERC721Holder, FunctionsClient, ConfirmedOwner
 
       deal.status = Status.REDEEMED;
 
-      string memory setter = string.concat("status='Redeemed',redeemed_amount='", payout.toString(), "'");
+      string memory setter = string.concat(
+        "status='Redeemed',redeemed_amount='",
+        payout.toString(),
+        "',",
+        "encrypted_tweet_id='",
+        deal.encryptedTweetId,
+        "'"
+      );
 
       require(s_database.updateDeal(redeemedDealId, setter));
 

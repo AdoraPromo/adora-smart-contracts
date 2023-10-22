@@ -114,6 +114,7 @@ const redeemDeal = async (options) => {
 
   const dealFromContract = await marketplace.getDeal(dealId)
   expect(dealFromContract.status).to.eq(2) // 1 => Redeemed
+  expect(dealFromContract.encryptedTweetId).to.eq(encryptedTweetId)
 
   const tableName = await database.s_tableName()
   const selectLastDeal = encodeURIComponent(`select * from ${tableName} LIMIT 1`)
@@ -139,12 +140,13 @@ const redeemDeal = async (options) => {
 
   expect(dealFromDB.redeemed_amount).to.eq(payout.toString())
 
+  expect(dealFromDB.encrypted_tweet_id).to.eq(encryptedTweetId)
   expect(await apeCoin.balanceOf(creator.address)).to.eq(payout)
 
   return dealId
 }
 
-describe("Deal redeeming", () => {
+describe.only("Deal redeeming", () => {
   before(async () => {
     const setup = await setupFunctionsTestnet()
 
