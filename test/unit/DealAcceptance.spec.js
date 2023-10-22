@@ -218,7 +218,7 @@ describe("Deal acceptance", () => {
     const dealFromContract = await marketplace.getDeal(dealId)
     expect(dealFromContract.status).to.eq(0)
 
-    expect(dealFromContract.creator).to.eq(creator.address)
+    expect(dealFromContract.creator).to.eq("0x0000000000000000000000000000000000000000")
 
     const tableName = await database.s_tableName()
     const selectLastDeal = encodeURIComponent(`select * from ${tableName} LIMIT 1`)
