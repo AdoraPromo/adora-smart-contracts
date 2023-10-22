@@ -181,8 +181,7 @@ contract SponsorshipMarketplace is ERC721Holder, FunctionsClient, ConfirmedOwner
   }
 
   function canUserDecrypt(address user, bytes32 dealId) external view returns (bool) {
-    return
-      s_deals[dealId].sponsor == user || (s_deals[dealId].creator == user && s_deals[dealId].status == Status.ACCEPTED);
+    return s_deals[dealId].sponsor == user || s_deals[dealId].creator == user;
   }
 
   // These 2 functions are added for convenience
